@@ -1,10 +1,10 @@
 use itertools::{FoldWhile, Itertools};
 
-struct ParenthesesAwareSplit<'a> {
+pub struct ParenthesesAwareSplitIter<'a> {
   inner: &'a str,
 }
 
-impl<'a> Iterator for ParenthesesAwareSplit<'a> {
+impl<'a> Iterator for ParenthesesAwareSplitIter<'a> {
   type Item = &'a str;
 
   fn next(&mut self) -> Option<Self::Item> {
@@ -32,7 +32,7 @@ impl<'a> Iterator for ParenthesesAwareSplit<'a> {
       FoldWhile::Continue(_) => {
         let tmp = self.inner;
         self.inner = &self.inner[self.inner.len()..];
-        if tmp.len() > 0 {
+        if !tmp.is_empty() {
           Some(tmp)
         } else {
           None
@@ -42,6 +42,10 @@ impl<'a> Iterator for ParenthesesAwareSplit<'a> {
   }
 }
 
-fn parentheses_aware_split<'a>(input: &'a str) -> ParenthesesAwareSplit<'a> {
-  ParenthesesAwareSplit { inner: input }
+pub trait ParenthesesAwareSplit<'a>: Into<&'a str> {
+  fn split_paren(self) -> ParenthesesAwareSplitIter<'a> {
+    ParenthesesAwareSplitIter { inner: self.into() }
+  }
 }
+
+impl<'a, T> ParenthesesAwareSplit<'a> for T where T: Into<&'a str> {}

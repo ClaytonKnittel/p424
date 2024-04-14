@@ -1,4 +1,11 @@
-use std::iter;
+use std::{
+  fmt,
+  fs::File,
+  io::{self, BufRead, BufReader},
+  iter,
+};
+
+use crate::parenthesis_split::ParenthesesAwareSplit;
 
 #[derive(Clone)]
 pub struct TotalTile {
@@ -70,6 +77,53 @@ pub struct Kakuro {
 }
 
 impl Kakuro {
+  pub fn from_file() -> io::Result<Vec<Kakuro>> {
+    let f = File::open("p424_kakuro200.txt")?;
+    let f = BufReader::new(f);
+
+    let mut grids: Vec<Kakuro> = Vec::new();
+    let mut sizes: Vec<usize> = Vec::new();
+    for line in f.lines() {
+      let line_str = line?;
+      let parts: Vec<&str> = line_str.split_paren().collect();
+      let n: usize = parts[0].parse::<usize>().unwrap();
+      sizes.push(n);
+      let mut grid = Vec::new();
+      for i in 0..n {
+        for j in 0..n {
+          let idx: usize = i * n + j + 1;
+          let part: &str = parts[idx];
+          if part == "X" {
+            grid.push(Tile::Empty);
+          } else if part == "O" {
+            grid.push(Tile::Unknown(UnknownTile::Blank));
+          } else if ("A"..="J").contains(&part) {
+            grid.push(Tile::Unknown(UnknownTile::Prefilled {
+              hint: part.chars().next().unwrap(),
+            }));
+          } else if part.starts_with('(') {
+            let sum_rules: Vec<&str> = part[1..part.len()].split(',').collect();
+            let mut vert_val: Option<String> = None;
+            let mut hori_val: Option<String> = None;
+            for rule in sum_rules {
+              if rule.starts_with('v') {
+                vert_val = Some(part[1..rule.len()].to_string());
+              } else if rule.starts_with('v') {
+                hori_val = Some(part[1..rule.len()].to_string());
+              }
+            }
+            grid.push(Tile::Total(TotalTile {
+              vertical: vert_val,
+              horizontal: hori_val,
+            }))
+          }
+        }
+      }
+      grids.push(Kakuro { tiles: grid, n });
+    }
+    Ok(grids)
+  }
+
   fn take_unknowns(
     &self,
     row: usize,
@@ -122,5 +176,43 @@ impl Kakuro {
         })
         .flatten()
     })
+  }
+}
+
+impl fmt::Display for Kakuro {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    let mut output = String::new();
+    self.tiles.iter().enumerate().for_each(|(idx, tile)| {
+      let tile_repr = match tile {
+        Tile::Empty => {
+          format!("{:10}", "X")
+        }
+        Tile::Unknown(UnknownTile::Blank) => {
+          format!("{:10}", "_")
+        }
+        Tile::Unknown(UnknownTile::Prefilled { hint }) => {
+          format!("{:10}", hint)
+        }
+        Tile::Total(TotalTile {
+          horizontal,
+          vertical,
+        }) => {
+          let horizontal_str = match horizontal {
+            Some(x) => x.to_string(),
+            None => "".to_string(),
+          };
+          let vertical_str = match vertical {
+            Some(x) => x.to_string(),
+            None => "".to_string(),
+          };
+          format!("{:10}", [horizontal_str, vertical_str].join(","))
+        }
+      };
+      output.push_str(&tile_repr);
+      if idx % self.n == self.n - 1 {
+        output.push('\n');
+      }
+    });
+    write!(f, "{}", output)
   }
 }

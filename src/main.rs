@@ -1,14 +1,12 @@
+use crate::parenthesis_split::ParenthesesAwareSplit;
+
 mod kakuro;
 mod parenthesis_split;
 mod solver;
 
 fn main() {
-  let mut v = Vec::<u32>::new();
-  for i in 0..10 {
-    v.push(0);
-    v[i].count_ones();
+  let s = "a, b, c, (d, e), f";
+  for x in s.split_paren() {
+    println!("{x}");
   }
-
-  let w: Vec<_> = (0..10).map(|i| i + 1).collect();
-  println!("Hello, world!");
 }

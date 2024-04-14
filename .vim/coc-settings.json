@@ -1,4 +1,3 @@
 {
-  "rust-analyzer.check.command": "clippy",
-  "rust-analyzer.checkOnSave": false
+  "rust-analyzer.check.command": "clippy"
 }
