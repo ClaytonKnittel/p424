@@ -1,7 +1,9 @@
 use std::io;
 
+use dlx::Dlx;
 use kakuro::Kakuro;
 
+mod dlx;
 mod kakuro;
 mod parenthesis_split;
 mod solver;
@@ -23,6 +25,8 @@ fn main() -> io::Result<()> {
       );
     }
   }
+
+  let dlx = Dlx::new(vec![1, 2, 3], vec![vec![1, 2], vec![3]]);
 
   Ok(())
 }
