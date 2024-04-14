@@ -51,6 +51,15 @@ pub enum UnknownTile {
   Prefilled { hint: char },
 }
 
+impl fmt::Display for UnknownTile {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      UnknownTile::Blank => "_".fmt(f),
+      UnknownTile::Prefilled { hint } => hint.fmt(f),
+    }
+  }
+}
+
 #[derive(Clone)]
 pub enum Tile {
   Empty,
@@ -67,6 +76,29 @@ impl Tile {
       Some(callback(total.clone()))
     } else {
       None
+    }
+  }
+}
+
+impl fmt::Display for Tile {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      Tile::Empty => "X".fmt(f),
+      Tile::Unknown(unknown_tile) => unknown_tile.fmt(f),
+      Tile::Total(TotalTile {
+        horizontal,
+        vertical,
+      }) => {
+        let horizontal_str = match horizontal {
+          Some(x) => x.to_string(),
+          None => "".to_string(),
+        };
+        let vertical_str = match vertical {
+          Some(x) => x.to_string(),
+          None => "".to_string(),
+        };
+        [vertical_str, horizontal_str].join(",").fmt(f)
+      }
     }
   }
 }
@@ -101,21 +133,48 @@ impl Kakuro {
             grid.push(Tile::Unknown(UnknownTile::Prefilled {
               hint: part.chars().next().unwrap(),
             }));
-          } else if part.starts_with('(') {
-            let sum_rules: Vec<&str> = part[1..part.len()].split(',').collect();
+          } else if let Some(line) = part
+            .strip_prefix('(')
+            .and_then(|line| line.strip_suffix(')'))
+          {
+            let total_tile = line.split(',').fold(
+              TotalTile {
+                vertical: None,
+                horizontal: None,
+              },
+              |total_tile, rule| {
+                if let Some(vert) = rule.strip_prefix('v') {
+                  TotalTile {
+                    vertical: Some(vert.to_string()),
+                    ..total_tile
+                  }
+                } else if let Some(hori) = rule.strip_prefix('h') {
+                  TotalTile {
+                    horizontal: Some(hori.to_string()),
+                    ..total_tile
+                  }
+                } else {
+                  total_tile
+                }
+              },
+            );
+            grid.push(Tile::Total(total_tile));
+            /*
+            let sum_rules: Vec<&str> = line.split(',').collect();
             let mut vert_val: Option<String> = None;
             let mut hori_val: Option<String> = None;
             for rule in sum_rules {
-              if rule.starts_with('v') {
-                vert_val = Some(part[1..rule.len()].to_string());
-              } else if rule.starts_with('v') {
-                hori_val = Some(part[1..rule.len()].to_string());
+              if let Some(vert) = rule.strip_prefix('v') {
+                vert_val = Some(vert.to_string());
+              } else if let Some(hori) = rule.strip_prefix('h') {
+                hori_val = Some(hori.to_string());
               }
             }
             grid.push(Tile::Total(TotalTile {
               vertical: vert_val,
               horizontal: hori_val,
             }))
+            */
           }
         }
       }
@@ -181,38 +240,12 @@ impl Kakuro {
 
 impl fmt::Display for Kakuro {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    let mut output = String::new();
-    self.tiles.iter().enumerate().for_each(|(idx, tile)| {
-      let tile_repr = match tile {
-        Tile::Empty => {
-          format!("{:10}", "X")
-        }
-        Tile::Unknown(UnknownTile::Blank) => {
-          format!("{:10}", "_")
-        }
-        Tile::Unknown(UnknownTile::Prefilled { hint }) => {
-          format!("{:10}", hint)
-        }
-        Tile::Total(TotalTile {
-          horizontal,
-          vertical,
-        }) => {
-          let horizontal_str = match horizontal {
-            Some(x) => x.to_string(),
-            None => "".to_string(),
-          };
-          let vertical_str = match vertical {
-            Some(x) => x.to_string(),
-            None => "".to_string(),
-          };
-          format!("{:10}", [horizontal_str, vertical_str].join(","))
-        }
-      };
-      output.push_str(&tile_repr);
-      if idx % self.n == self.n - 1 {
-        output.push('\n');
+    self.tiles.iter().enumerate().try_for_each(|(idx, tile)| {
+      write!(f, "{:10}", tile)?;
+      if (idx + 1) % self.n == 0 {
+        writeln!(f)?;
       }
-    });
-    write!(f, "{}", output)
+      Ok(())
+    })
   }
 }
