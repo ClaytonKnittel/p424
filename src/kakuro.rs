@@ -188,12 +188,13 @@ impl Kakuro {
     row: usize,
     col: usize,
     vertical: bool,
-  ) -> impl Iterator<Item = UnknownTile> + '_ {
+  ) -> impl Iterator<Item = (usize, UnknownTile)> + '_ {
     let idx = if vertical { row } else { col };
     let step = if vertical { self.n } else { 1 };
-    ((idx + 1)..self.n).map_while(move |idx| {
-      if let Tile::Unknown(unknown) = self.tiles.get(row * self.n + col + idx * step).unwrap() {
-        Some(unknown.clone())
+    (1..(self.n - idx)).map_while(move |idx| {
+      let idx = row * self.n + col + idx * step;
+      if let Tile::Unknown(unknown) = self.tiles.get(idx).unwrap() {
+        Some((idx, unknown.clone()))
       } else {
         None
       }
@@ -202,7 +203,7 @@ impl Kakuro {
 
   pub fn enumerate_lines(
     &self,
-  ) -> impl Iterator<Item = (String, impl Iterator<Item = UnknownTile> + '_)> + '_ {
+  ) -> impl Iterator<Item = (String, impl Iterator<Item = (usize, UnknownTile)> + '_)> + '_ {
     (0..self.n).flat_map(move |row| {
       (0..self.n)
         .filter_map(move |col| {

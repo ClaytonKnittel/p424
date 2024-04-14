@@ -17,7 +17,7 @@ fn main() -> io::Result<()> {
         line.0,
         line
           .1
-          .map(|tile| tile.to_string())
+          .map(|(idx, tile)| format!("({} {})", tile, idx))
           .collect::<Vec<_>>()
           .join(", "),
       );
