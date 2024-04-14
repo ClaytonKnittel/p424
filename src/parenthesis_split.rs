@@ -34,10 +34,10 @@ impl<'a> Iterator for ParenthesesAwareSplit<'a> {
         self.inner = &self.inner[self.inner.len()..];
         if tmp.len() > 0 {
           Some(tmp)
-           } else {
-             None}
+        } else {
+          None
         }
-      },
+      }
     }
   }
 }
