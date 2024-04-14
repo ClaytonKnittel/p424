@@ -77,8 +77,8 @@ pub struct Kakuro {
 }
 
 impl Kakuro {
-  pub fn from_file() -> io::Result<Vec<Kakuro>> {
-    let f = File::open("p424_kakuro200.txt")?;
+  pub fn from_file(path: &str) -> io::Result<Vec<Kakuro>> {
+    let f = File::open(path)?;
     let f = BufReader::new(f);
 
     let mut grids: Vec<Kakuro> = Vec::new();
