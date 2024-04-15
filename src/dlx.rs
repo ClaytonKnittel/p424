@@ -64,7 +64,7 @@ where
   I: Display,
 {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    writeln!(
+    write!(
       f,
       "{} (prev: {}, next: {}) ({})",
       match &self.item {
@@ -191,7 +191,7 @@ where
         first_for_prev,
         last_for_next,
       } => {
-        writeln!(
+        write!(
           f,
           "{}: (first_prev: {}, last_next: {})",
           match name {
@@ -206,7 +206,7 @@ where
         item_node: ListNodeI { prev, next },
         node_type,
       } => {
-        writeln!(
+        write!(
           f,
           "(prev: {}, next: {}) ({})",
           prev,
@@ -266,19 +266,33 @@ where
     let mut body = Vec::new();
     let mut last_start_index = 0;
 
+    // Push phony node to first element of body.
+    body.push(Node::Boundary {
+      name: None,
+      first_for_prev: 0,
+      last_for_next: 0,
+    });
+
     headers.extend(
       items
         .into_iter()
         .enumerate()
         .map(|(idx, (item, header_type))| {
-          let new_idx = idx as u32 + 1;
+          let new_idx = idx as u64 + 1;
           item_map.insert(item.clone(), new_idx);
+          body.push(Node::Normal {
+            item_node: ListNodeI {
+              prev: new_idx,
+              next: new_idx,
+            },
+            node_type: NodeType::Header { size: 0 },
+          });
 
           Header {
             item: Some(item),
             node: ListNodeI {
-              prev: new_idx - 1,
-              next: new_idx + 1,
+              prev: new_idx as u32 - 1,
+              next: new_idx as u32 + 1,
             },
             header_type,
           }
@@ -348,11 +362,11 @@ where
   N: Display,
 {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-    for header in self.headers.iter() {
-      writeln!(f, "H: {}", header)?;
+    for (idx, header) in self.headers.iter().enumerate() {
+      writeln!(f, "{idx:<3} H: {header}")?;
     }
-    for node in self.body.iter() {
-      writeln!(f, "N: {}", node)?;
+    for (idx, node) in self.body.iter().enumerate() {
+      writeln!(f, "{idx:<3} N: {}", node)?;
     }
     Ok(())
   }
