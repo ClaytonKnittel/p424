@@ -35,5 +35,7 @@ fn main() -> io::Result<()> {
     vec![(0, vec![1, 2]), (1, vec![3])],
   );
 
+  println!("{}", dlx);
+
   Ok(())
 }

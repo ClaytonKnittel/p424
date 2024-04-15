@@ -1,4 +1,8 @@
-use std::{collections::HashMap, hash::Hash};
+use std::{
+  collections::HashMap,
+  fmt::{self, Display, Formatter},
+  hash::Hash,
+};
 
 pub struct ColorItem<I> {
   item: I,
@@ -55,6 +59,28 @@ struct Header<I> {
   header_type: HeaderType,
 }
 
+impl<I> Display for Header<I>
+where
+  I: Display,
+{
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    writeln!(
+      f,
+      "{} (prev: {}, next: {}) ({})",
+      match &self.item {
+        Some(item) => item.to_string(),
+        None => "[None]".to_string(),
+      },
+      self.node.prev,
+      self.node.next,
+      match self.header_type {
+        HeaderType::Primary => "Primary",
+        HeaderType::Secondary => "Secondary",
+      }
+    )
+  }
+}
+
 type ListNode = ListNodeI<u64>;
 
 enum NodeType {
@@ -68,10 +94,10 @@ enum NodeType {
   },
 }
 
-enum Node<I> {
+enum Node<N> {
   Boundary {
     /// The name of the subset listed to the left of this boundary.
-    name: Option<I>,
+    name: Option<N>,
     /// The index of the first node in the subset that comes before this
     /// boundary.
     first_for_prev: u64,
@@ -154,12 +180,68 @@ impl<I> Node<I> {
   }
 }
 
-pub struct Dlx {}
+impl<N> Display for Node<N>
+where
+  N: Display,
+{
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Node::Boundary {
+        name,
+        first_for_prev,
+        last_for_next,
+      } => {
+        writeln!(
+          f,
+          "{}: (first_prev: {}, last_next: {})",
+          match name {
+            Some(name) => name.to_string(),
+            None => "[None]".to_string(),
+          },
+          first_for_prev,
+          last_for_next
+        )
+      }
+      Node::Normal {
+        item_node: ListNodeI { prev, next },
+        node_type,
+      } => {
+        writeln!(
+          f,
+          "(prev: {}, next: {}) ({})",
+          prev,
+          next,
+          match node_type {
+            NodeType::Header { size } => {
+              format!("Header (size: {})", size)
+            }
+            NodeType::Body { color } => {
+              format!(
+                "Body{}",
+                match color {
+                  Some(color) => format!(" (color: {color})"),
+                  None => "".to_string(),
+                }
+              )
+            }
+          }
+        )
+      }
+    }
+  }
+}
 
-impl Dlx {
-  pub fn new<I, U, S, N, C, D>(items: U, subsets: S) -> Self
+pub struct Dlx<I, N> {
+  headers: Vec<Header<I>>,
+  body: Vec<Node<N>>,
+}
+
+impl<I, N> Dlx<I, N>
+where
+  I: Hash + Eq + Clone,
+{
+  pub fn new<U, S, C, D>(items: U, subsets: S) -> Self
   where
-    I: Hash + Eq + Clone,
     U: IntoIterator<Item = (I, HeaderType)>,
     S: IntoIterator<Item = (N, C)>,
     C: IntoIterator<Item = D>,
@@ -168,9 +250,8 @@ impl Dlx {
     Self::construct(items, subsets)
   }
 
-  fn construct<I, U, S, N, C, D>(items: U, subsets: S) -> Self
+  fn construct<U, S, C, D>(items: U, subsets: S) -> Self
   where
-    I: Hash + Eq + Clone,
     U: IntoIterator<Item = (I, HeaderType)>,
     S: IntoIterator<Item = (N, C)>,
     C: IntoIterator<Item = D>,
@@ -257,7 +338,23 @@ impl Dlx {
       });
     }
 
-    Dlx {}
+    Dlx { headers, body }
+  }
+}
+
+impl<I, N> Display for Dlx<I, N>
+where
+  I: Display,
+  N: Display,
+{
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    for header in self.headers.iter() {
+      writeln!(f, "H: {}", header)?;
+    }
+    for node in self.body.iter() {
+      writeln!(f, "N: {}", node)?;
+    }
+    Ok(())
   }
 }
 
@@ -267,8 +364,6 @@ mod test {
 
   #[test]
   fn test_simple() {
-    let x = vec![1];
-    let y = x.iter();
     let dlx = Dlx::new(vec![(1, HeaderType::Primary)], vec![(0, vec![1])]);
   }
 }
