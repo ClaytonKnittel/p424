@@ -816,7 +816,20 @@ mod test {
   use super::{Dlx, HeaderType};
 
   #[test]
+  fn test_empty() {
+    let mut dlx: Dlx<u32, u32> = Dlx::new::<_, _, Vec<_>, u32>(vec![], vec![]);
+
+    assert!(dlx
+      .find_solution()
+      .is_some_and(|solution| solution.eq(vec![].into_iter())));
+  }
+
+  #[test]
   fn test_simple() {
-    let dlx = Dlx::new(vec![(1, HeaderType::Primary)], vec![(0, vec![1])]);
+    let mut dlx = Dlx::new(vec![(1, HeaderType::Primary)], vec![(0, vec![1])]);
+
+    assert!(dlx
+      .find_solution()
+      .is_some_and(|solution| solution.eq(vec![0].into_iter())));
   }
 }

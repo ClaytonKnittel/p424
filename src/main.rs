@@ -40,7 +40,6 @@ fn main() -> io::Result<()> {
       (2, vec![1.into()]),
     ],
   );
-  // let mut dlx: Dlx<u32, u32> = Dlx::new::<_, _, Vec<_>, u32>(vec![], vec![]);
 
   println!("{}", dlx);
 
