@@ -24,14 +24,14 @@ pub enum Constraint<I> {
 impl<I> Constraint<I> {
   fn item(&self) -> &I {
     match self {
-      Constraint::Primary(item) | Constraint::Secondary(ColorItem { item, color: _ }) => item,
+      Constraint::Primary(item) | Constraint::Secondary(ColorItem { item, .. }) => item,
     }
   }
 
   fn color(&self) -> Option<u32> {
     match self {
       Constraint::Primary(_) => None,
-      Constraint::Secondary(ColorItem { item: _, color }) => Some(*color),
+      Constraint::Secondary(ColorItem { color, .. }) => Some(*color),
     }
   }
 }
@@ -128,8 +128,8 @@ impl<I> Node<I> {
   fn color(&self) -> Option<u32> {
     match self {
       Node::Normal {
-        item_node: _,
-        node_type: NodeType::Body { color, top: _ },
+        node_type: NodeType::Body { color, .. },
+        ..
       } => *color,
       _ => unreachable!("Unexpected color() called on non-body node"),
     }
@@ -138,8 +138,8 @@ impl<I> Node<I> {
   fn color_mut(&mut self) -> &mut Option<u32> {
     match self {
       Node::Normal {
-        item_node: _,
-        node_type: NodeType::Body { color, top: _ },
+        node_type: NodeType::Body { color, .. },
+        ..
       } => color,
       _ => unreachable!("Unexpected color() called on non-body node"),
     }
@@ -148,8 +148,8 @@ impl<I> Node<I> {
   fn len(&self) -> usize {
     match self {
       Node::Normal {
-        item_node: _,
         node_type: NodeType::Header { size },
+        ..
       } => *size,
       _ => unreachable!("Node::len() called on non-header node"),
     }
@@ -158,8 +158,8 @@ impl<I> Node<I> {
   fn len_mut(&mut self) -> &mut usize {
     match self {
       Node::Normal {
-        item_node: _,
         node_type: NodeType::Header { size },
+        ..
       } => size,
       _ => unreachable!("Node::len_mut() called on non-header node"),
     }
@@ -167,57 +167,29 @@ impl<I> Node<I> {
 
   fn prev(&self) -> usize {
     match self {
-      Node::Normal {
-        item_node,
-        node_type: _,
-      } => item_node.prev,
-      Node::Boundary {
-        name: _,
-        first_for_prev: _,
-        last_for_next: _,
-      } => unreachable!("Cannot call Node::prev() on a Boundary node"),
+      Node::Normal { item_node, .. } => item_node.prev,
+      Node::Boundary { .. } => unreachable!("Cannot call Node::prev() on a Boundary node"),
     }
   }
 
   fn set_prev(&mut self, idx: usize) {
     match self {
-      Node::Normal {
-        item_node,
-        node_type: _,
-      } => item_node.prev = idx,
-      Node::Boundary {
-        name: _,
-        first_for_prev: _,
-        last_for_next: _,
-      } => unreachable!("Cannot call Node::set_prev() on a Boundary node"),
+      Node::Normal { item_node, .. } => item_node.prev = idx,
+      Node::Boundary { .. } => unreachable!("Cannot call Node::set_prev() on a Boundary node"),
     }
   }
 
   fn next(&self) -> usize {
     match self {
-      Node::Normal {
-        item_node,
-        node_type: _,
-      } => item_node.next,
-      Node::Boundary {
-        name: _,
-        first_for_prev: _,
-        last_for_next: _,
-      } => unreachable!("Cannot call Node::next() on a Boundary node"),
+      Node::Normal { item_node, .. } => item_node.next,
+      Node::Boundary { .. } => unreachable!("Cannot call Node::next() on a Boundary node"),
     }
   }
 
   fn set_next(&mut self, idx: usize) {
     match self {
-      Node::Normal {
-        item_node,
-        node_type: _,
-      } => item_node.next = idx,
-      Node::Boundary {
-        name: _,
-        first_for_prev: _,
-        last_for_next: _,
-      } => unreachable!("Cannot call Node::set_next() on a Boundary node"),
+      Node::Normal { item_node, .. } => item_node.next = idx,
+      Node::Boundary { .. } => unreachable!("Cannot call Node::set_next() on a Boundary node"),
     }
   }
 }
@@ -403,16 +375,14 @@ where
             (headers.get(header_idx).unwrap(), &constraint),
             (
               Header {
-                item: _,
-                node: _,
                 header_type: HeaderType::Primary,
+                ..
               },
               Constraint::Primary(_),
             ) | (
               Header {
-                item: _,
-                node: _,
                 header_type: HeaderType::Secondary,
+                ..
               },
               Constraint::Secondary(_),
             )
@@ -437,12 +407,7 @@ where
       });
 
       let last_idx = body.len() - 1;
-      if let Some(Node::Boundary {
-        name: _,
-        first_for_prev: _,
-        last_for_next,
-      }) = body.get_mut(last_start_index - 1)
-      {
+      if let Some(Node::Boundary { last_for_next, .. }) = body.get_mut(last_start_index - 1) {
         *last_for_next = last_idx;
       } else {
         unreachable!();
@@ -492,16 +457,28 @@ where
     unsafe { self.body.get_unchecked_mut(idx) }
   }
 
+  fn node(&self, idx: usize) -> &Node<N> {
+    debug_assert!(
+      (1..(self.headers.len() - 1)).contains(&idx)
+        || (self.headers.len()..self.body.len()).contains(&idx)
+    );
+    unsafe { self.body.get_unchecked(idx) }
+  }
+
+  fn node_mut(&mut self, idx: usize) -> &mut Node<N> {
+    debug_assert!(
+      (1..(self.headers.len() - 1)).contains(&idx)
+        || (self.headers.len()..self.body.len()).contains(&idx)
+    );
+    unsafe { self.body.get_unchecked_mut(idx) }
+  }
+
   /// Remove the subset containing the node at `idx` from the grid.
   fn hide(&mut self, idx: usize) {
     let mut q = idx + 1;
     while q != idx {
       match self.body_node(q) {
-        Node::Boundary {
-          name: _,
-          first_for_prev,
-          last_for_next: _,
-        } => {
+        Node::Boundary { first_for_prev, .. } => {
           q = *first_for_prev;
         }
         Node::Normal {
@@ -520,8 +497,8 @@ where
           q += 1;
         }
         Node::Normal {
-          item_node: _,
-          node_type: NodeType::Header { size: _ },
+          node_type: NodeType::Header { .. },
+          ..
         } => unreachable!("Unexpected header encountered in hide() at index {q}"),
       }
     }
@@ -533,11 +510,7 @@ where
     let mut q = idx - 1;
     while q != idx {
       match self.body_node(q) {
-        Node::Boundary {
-          name: _,
-          first_for_prev: _,
-          last_for_next,
-        } => {
+        Node::Boundary { last_for_next, .. } => {
           q = *last_for_next;
         }
         Node::Normal {
@@ -556,8 +529,8 @@ where
           q -= 1;
         }
         Node::Normal {
-          item_node: _,
-          node_type: NodeType::Header { size: _ },
+          node_type: NodeType::Header { .. },
+          ..
         } => unreachable!("Unexpected header encountered in unhide() at index {q}"),
       }
     }
@@ -605,11 +578,11 @@ where
     debug_assert!(((self.num_primary_items() + 1)..self.headers.len()).contains(&idx));
     let (color, top) = match self.body_node(idx) {
       Node::Normal {
-        item_node: _,
         node_type: NodeType::Body {
           color: Some(color),
           top,
         },
+        ..
       } => (*color, *top as usize),
       _ => unreachable!("Unexpected uncolored node for secondary constraint at index {idx}."),
     };
@@ -632,11 +605,11 @@ where
     debug_assert!(((self.num_primary_items() + 1)..self.headers.len()).contains(&idx));
     let (color, top) = match self.body_node(idx) {
       Node::Normal {
-        item_node: _,
         node_type: NodeType::Body {
           color: Some(color),
           top,
         },
+        ..
       } => (*color, *top as usize),
       _ => unreachable!("Unexpected uncolored node for secondary constraint at index {idx}."),
     };
@@ -669,6 +642,29 @@ where
     }
   }
 
+  /// Covers all other items take by the subset containing the node at `idx`.
+  fn cover_remaining_choices(&mut self, idx: usize) {
+    let mut p = idx + 1;
+    while p != idx {
+      match self.body_node(p) {
+        Node::Boundary { first_for_prev, .. } => {
+          p = *first_for_prev;
+        }
+        Node::Normal {
+          node_type: NodeType::Body { top, .. },
+          ..
+        } => {
+          self.commit(p, *top as usize);
+          p += 1;
+        }
+        Node::Normal {
+          node_type: NodeType::Header { .. },
+          ..
+        } => unreachable!("Unexpected header encountered in hide() at index {p}"),
+      }
+    }
+  }
+
   /// Chooses the index of the next item to try covering, using the LRV
   /// heuristic (least remaining values). Returns None if there are no items
   /// left, meaning a solution has been found.
@@ -697,15 +693,8 @@ where
   fn set_name_for_node(&self, idx: usize) -> N {
     ((idx + 1)..)
       .find_map(|q| match self.body_node(q) {
-        Node::Boundary {
-          name,
-          first_for_prev: _,
-          last_for_next: _,
-        } => Some(name.clone().unwrap()),
-        Node::Normal {
-          item_node: _,
-          node_type: _,
-        } => None,
+        Node::Boundary { name, .. } => Some(name.clone().unwrap()),
+        Node::Normal { .. } => None,
       })
       .unwrap()
   }
@@ -721,6 +710,34 @@ where
       }
     }
 
+    while let Some(p) = solution.pop() {
+      // Try exploring the next choice.
+      let p = self.node(p).next();
+
+      let top = match self.node(p) {
+        Node::Normal {
+          node_type: NodeType::Header { .. },
+          ..
+        } => {
+          // We have exhausted all options under this item, so continue to the
+          // previous item.
+          continue;
+        }
+        Node::Normal {
+          node_type: NodeType::Body { top, .. },
+          ..
+        } => {
+          // We can try exploring this subset.
+          solution.push(p);
+          *top as usize
+        }
+        Node::Boundary { .. } => unreachable!("Unexpected boundary node found in queue: {p}"),
+      };
+
+      self.commit(p, top);
+    }
+
+    // No solution could be found.
     None
   }
 }

@@ -28,19 +28,19 @@ fn main() -> io::Result<()> {
     }
   }
 
-  // let mut dlx = Dlx::new(
-  //   vec![
-  //     (1, HeaderType::Primary),
-  //     (3, HeaderType::Secondary),
-  //     (2, HeaderType::Primary),
-  //   ],
-  //   vec![
-  //     (0, vec![1.into(), 2.into()]),
-  //     (1, vec![Constraint::Secondary(ColorItem::new(3, 1))]),
-  //     (2, vec![1.into()]),
-  //   ],
-  // );
-  let mut dlx: Dlx<u32, u32> = Dlx::new::<_, _, Vec<_>, u32>(vec![], vec![]);
+  let mut dlx = Dlx::new(
+    vec![
+      (1, HeaderType::Primary),
+      (3, HeaderType::Secondary),
+      (2, HeaderType::Primary),
+    ],
+    vec![
+      (0, vec![1.into(), 2.into()]),
+      (1, vec![Constraint::Secondary(ColorItem::new(3, 1))]),
+      (2, vec![1.into()]),
+    ],
+  );
+  // let mut dlx: Dlx<u32, u32> = Dlx::new::<_, _, Vec<_>, u32>(vec![], vec![]);
 
   println!("{}", dlx);
 
