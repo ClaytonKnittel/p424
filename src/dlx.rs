@@ -2,7 +2,10 @@ use std::{
   collections::HashMap,
   fmt::{self, Display, Formatter},
   hash::Hash,
+  iter,
 };
+
+use itertools::Itertools;
 
 pub struct ColorItem<I> {
   item: I,
@@ -273,9 +276,19 @@ where
       last_for_next: 0,
     });
 
-    headers.extend(
+    let (primary_headers, secondary_headers): (Vec<_>, Vec<_>) =
       items
         .into_iter()
+        .partition(|(_, header_type)| match header_type {
+          HeaderType::Primary => true,
+          HeaderType::Secondary => false,
+        });
+
+    let primary_headers_len = primary_headers.len() as u32;
+    headers.extend(
+      primary_headers
+        .into_iter()
+        .chain(secondary_headers)
         .enumerate()
         .map(|(idx, (item, header_type))| {
           let new_idx = idx as u64 + 1;
@@ -298,9 +311,17 @@ where
           }
         }),
     );
-    let last_idx = headers.len() - 1;
-    headers.get_mut(0).unwrap().node.prev = last_idx as u32;
-    headers.get_mut(last_idx).unwrap().node.next = 0;
+    let last_idx = headers.len();
+    headers.push(Header {
+      item: None,
+      node: ListNodeI {
+        prev: last_idx as u32 - 1,
+        next: primary_headers_len + 1,
+      },
+      header_type: HeaderType::Secondary,
+    });
+    headers.get_mut(0).unwrap().node.prev = primary_headers_len;
+    headers.get_mut(last_idx).unwrap().node.next = primary_headers_len + 1;
 
     body.push(Node::Boundary {
       name: None,
@@ -375,6 +396,10 @@ where
     }
 
     Dlx { headers, body }
+  }
+
+  pub fn find_solution(&mut self) -> impl Iterator<Item = N> {
+    iter::empty()
   }
 }
 

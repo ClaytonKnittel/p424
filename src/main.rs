@@ -28,7 +28,7 @@ fn main() -> io::Result<()> {
     }
   }
 
-  let dlx = Dlx::new(
+  let mut dlx = Dlx::new(
     vec![
       (1, HeaderType::Primary),
       (2, HeaderType::Primary),
@@ -41,6 +41,10 @@ fn main() -> io::Result<()> {
   );
 
   println!("{}", dlx);
+
+  for c in dlx.find_solution() {
+    println!("soln: {}", c);
+  }
 
   Ok(())
 }
