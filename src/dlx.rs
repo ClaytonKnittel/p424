@@ -533,6 +533,7 @@ where
   /// Remove all subsets which contain the header item `idx`, and hide the item
   /// from the items list.
   fn cover(&mut self, idx: usize) {
+    debug_assert!((1..=self.num_primary_items()).contains(&idx));
     let mut p = self.body_header(idx).next();
     while p != idx {
       self.hide(p);
@@ -545,6 +546,98 @@ where
     let next_idx = header.node.next;
     self.header_mut(prev_idx as usize).node.next = next_idx;
     self.header_mut(next_idx as usize).node.prev = prev_idx;
+  }
+
+  /// Reverts `cover(idx)`, assuming the state of Dlx was exactly as it was
+  /// when `cover(idx)` was called.
+  fn uncover(&mut self, idx: usize) {
+    debug_assert!((1..=self.num_primary_items()).contains(&idx));
+    // Put this item back in the items list.
+    let header = self.header(idx);
+    let prev_idx = header.node.prev;
+    let next_idx = header.node.next;
+    self.header_mut(prev_idx as usize).node.next = idx as u32;
+    self.header_mut(next_idx as usize).node.prev = idx as u32;
+
+    let mut p = self.body_header(idx).prev();
+    while p != idx {
+      self.unhide(p);
+      p = self.body_node(p).prev();
+    }
+  }
+
+  /// Covers all subsets with secondary constraints which don't have the same
+  /// color as the constraint at index `idx`.
+  fn purify(&mut self, idx: usize) {
+    debug_assert!(((self.num_primary_items() + 1)..self.headers.len()).contains(&idx));
+    let (color, top) = match self.body_node(idx) {
+      Node::Normal {
+        item_node: _,
+        node_type: NodeType::Body {
+          color: Some(color),
+          top,
+        },
+      } => (*color, *top as usize),
+      _ => unreachable!("Unexpected uncolored node for secondary constraint at index {idx}."),
+    };
+
+    let mut p = self.body_header(top).next();
+    while p != idx {
+      if let Node::Normal {
+        item_node: _,
+        node_type: NodeType::Body {
+          color: p_color,
+          top: _,
+        },
+      } = self.body_node_mut(p)
+      {
+        if *p_color == Some(color) {
+          *p_color = None;
+        } else {
+          self.hide(p);
+        }
+      } else {
+        unreachable!("Unexpected non-body node at index {p}");
+      }
+      p = self.body_node(p).next();
+    }
+  }
+
+  /// Reverts `purify(idx)`, assuming the state of Dlx was exactly as it was
+  /// when `purify(idx)` was called.
+  fn unpurify(&mut self, idx: usize) {
+    debug_assert!(((self.num_primary_items() + 1)..self.headers.len()).contains(&idx));
+    let (color, top) = match self.body_node(idx) {
+      Node::Normal {
+        item_node: _,
+        node_type: NodeType::Body {
+          color: Some(color),
+          top,
+        },
+      } => (*color, *top as usize),
+      _ => unreachable!("Unexpected uncolored node for secondary constraint at index {idx}."),
+    };
+
+    let mut p = self.body_header(top).prev();
+    while p != idx {
+      if let Node::Normal {
+        item_node: _,
+        node_type: NodeType::Body {
+          color: p_color,
+          top: _,
+        },
+      } = self.body_node_mut(p)
+      {
+        if p_color.is_none() {
+          *p_color = Some(color);
+        } else {
+          self.unhide(p);
+        }
+      } else {
+        unreachable!("Unexpected non-body node at index {p}");
+      }
+      p = self.body_node(p).prev();
+    }
   }
 
   pub fn find_solution(&mut self) -> impl Iterator<Item = N> {
