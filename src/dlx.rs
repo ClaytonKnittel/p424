@@ -660,7 +660,34 @@ where
         Node::Normal {
           node_type: NodeType::Header { .. },
           ..
-        } => unreachable!("Unexpected header encountered in hide() at index {p}"),
+        } => {
+          unreachable!("Unexpected header encountered in cover_remaining_choices() at index {p}")
+        }
+      }
+    }
+  }
+
+  /// Covers all other items take by the subset containing the node at `idx`.
+  fn uncover_remaining_choices(&mut self, idx: usize) {
+    let mut p = idx - 1;
+    while p != idx {
+      match self.body_node(p) {
+        Node::Boundary { last_for_next, .. } => {
+          p = *last_for_next;
+        }
+        Node::Normal {
+          node_type: NodeType::Body { top, .. },
+          ..
+        } => {
+          self.uncommit(p, *top as usize);
+          p -= 1;
+        }
+        Node::Normal {
+          node_type: NodeType::Header { .. },
+          ..
+        } => {
+          unreachable!("Unexpected header encountered in uncover_remaining_choices() at index {p}")
+        }
       }
     }
   }
@@ -701,40 +728,46 @@ where
 
   pub fn find_solution(&mut self) -> Option<impl Iterator<Item = N> + '_> {
     let mut solution = Vec::new();
-    match self.choose_item() {
-      Some(item) => {
-        solution.push(item as usize);
-      }
-      None => {
-        return Some(solution.into_iter().map(|p| self.set_name_for_node(p)));
-      }
-    }
 
-    while let Some(p) = solution.pop() {
-      // Try exploring the next choice.
-      let p = self.node(p).next();
-
-      let top = match self.node(p) {
-        Node::Normal {
-          node_type: NodeType::Header { .. },
-          ..
-        } => {
-          // We have exhausted all options under this item, so continue to the
-          // previous item.
-          continue;
+    'cover_new_item: loop {
+      match self.choose_item() {
+        Some(item) => {
+          let item = item as usize;
+          solution.push(item);
+          self.cover(item);
         }
-        Node::Normal {
-          node_type: NodeType::Body { top, .. },
-          ..
-        } => {
-          // We can try exploring this subset.
-          solution.push(p);
-          *top as usize
+        None => {
+          return Some(solution.into_iter().map(|p| self.set_name_for_node(p)));
         }
-        Node::Boundary { .. } => unreachable!("Unexpected boundary node found in queue: {p}"),
-      };
+      }
 
-      self.commit(p, top);
+      while let Some(p) = solution.pop() {
+        // Try exploring the next choice.
+        let p = self.node(p).next();
+
+        match self.node(p) {
+          Node::Normal {
+            node_type: NodeType::Header { .. },
+            ..
+          } => {
+            // We have exhausted all options under this item, so continue to the
+            // previous item.
+            self.uncover(p);
+          }
+          Node::Normal {
+            node_type: NodeType::Body { top, .. },
+            ..
+          } => {
+            // We can try exploring this subset.
+            solution.push(p);
+            self.commit(p, *top as usize);
+            continue 'cover_new_item;
+          }
+          Node::Boundary { .. } => unreachable!("Unexpected boundary node found in queue: {p}"),
+        }
+      }
+
+      break;
     }
 
     // No solution could be found.
