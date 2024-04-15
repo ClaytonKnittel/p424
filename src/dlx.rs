@@ -447,8 +447,7 @@ where
   fn hide(&mut self, idx: usize) {
     let mut q = idx + 1;
     while q != idx {
-      let node = self.body_node(q);
-      match node {
+      match self.body_node(q) {
         Node::Boundary {
           name: _,
           first_for_prev,
@@ -483,6 +482,50 @@ where
           item_node: _,
           node_type: NodeType::Header { size: _ },
         } => unreachable!("Unexpected header encountered in hide() at index {q}"),
+      }
+    }
+  }
+
+  /// Reverts `hide(idx)`, assuming the state of Dlx was exactly as it was when
+  /// `hide(idx)` was called.
+  fn unhide(&mut self, idx: usize) {
+    let mut q = idx - 1;
+    while q != idx {
+      match self.body_node(q) {
+        Node::Boundary {
+          name: _,
+          first_for_prev: _,
+          last_for_next,
+        } => {
+          q = *last_for_next;
+        }
+        Node::Normal {
+          item_node,
+          node_type: NodeType::Body { color, top },
+        } => {
+          let top = *top as usize;
+
+          if color.is_some() {
+            let prev_idx = item_node.prev;
+            let next_idx = item_node.next;
+            self.body_node_mut(prev_idx).set_next(q);
+            self.body_node_mut(next_idx).set_prev(q);
+          }
+          if let Node::Normal {
+            item_node: _,
+            node_type: NodeType::Header { size },
+          } = self.body_node_mut(top)
+          {
+            *size += 1;
+          } else {
+            unreachable!("Unexpected non-header at index {top}");
+          }
+          q -= 1;
+        }
+        Node::Normal {
+          item_node: _,
+          node_type: NodeType::Header { size: _ },
+        } => unreachable!("Unexpected header encountered in unhide() at index {q}"),
       }
     }
   }
