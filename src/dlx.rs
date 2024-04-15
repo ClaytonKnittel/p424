@@ -5,8 +5,6 @@ use std::{
   iter,
 };
 
-use itertools::Itertools;
-
 pub struct ColorItem<I> {
   item: I,
   color: u32,
@@ -84,12 +82,12 @@ where
   }
 }
 
-type ListNode = ListNodeI<u64>;
+type ListNode = ListNodeI<usize>;
 
 enum NodeType {
   Header {
     /// Number of constraints that have this item.
-    size: u64,
+    size: usize,
   },
   Body {
     /// The assigned color of this node, or None if this is a primary constraint.
@@ -103,10 +101,10 @@ enum Node<N> {
     name: Option<N>,
     /// The index of the first node in the subset that comes before this
     /// boundary.
-    first_for_prev: u64,
+    first_for_prev: usize,
     /// The index of the last node in the subset that comes after this
     /// boundary.
-    last_for_next: u64,
+    last_for_next: usize,
   },
   Normal {
     /// Node in linked list of item.
@@ -131,7 +129,7 @@ impl<I> Node<I> {
       Node::Normal {
         item_node,
         node_type: _,
-      } => item_node.prev as usize,
+      } => item_node.prev,
       Node::Boundary {
         name: _,
         first_for_prev: _,
@@ -145,7 +143,7 @@ impl<I> Node<I> {
       Node::Normal {
         item_node,
         node_type: _,
-      } => item_node.prev = idx as u64,
+      } => item_node.prev = idx,
       Node::Boundary {
         name: _,
         first_for_prev: _,
@@ -159,7 +157,7 @@ impl<I> Node<I> {
       Node::Normal {
         item_node,
         node_type: _,
-      } => item_node.next as usize,
+      } => item_node.next,
       Node::Boundary {
         name: _,
         first_for_prev: _,
@@ -173,7 +171,7 @@ impl<I> Node<I> {
       Node::Normal {
         item_node,
         node_type: _,
-      } => item_node.next = idx as u64,
+      } => item_node.next = idx,
       Node::Boundary {
         name: _,
         first_for_prev: _,
@@ -293,7 +291,7 @@ where
         .chain(secondary_headers)
         .enumerate()
         .map(|(idx, (item, header_type))| {
-          let new_idx = idx as u64 + 1;
+          let new_idx = idx + 1;
           if item_map.insert(item.clone(), new_idx).is_some() {
             panic!("Duplicate item {:?}", item);
           }
@@ -345,8 +343,7 @@ where
 
         let header_idx = *item_map
           .get(constraint.item())
-          .unwrap_or_else(|| panic!("Unknown item {:?}", constraint.item()))
-          as usize;
+          .unwrap_or_else(|| panic!("Unknown item {:?}", constraint.item()));
         let header = body.get_mut(header_idx).unwrap();
         let prev_idx = header.prev();
 
@@ -378,8 +375,8 @@ where
 
         body.push(Node::Normal {
           item_node: ListNodeI {
-            prev: prev_idx as u64,
-            next: header_idx as u64,
+            prev: prev_idx,
+            next: header_idx,
           },
           node_type: NodeType::Body {
             color: constraint.color(),
@@ -387,7 +384,7 @@ where
         });
       });
 
-      let last_idx = body.len() as u64 - 1;
+      let last_idx = body.len() - 1;
       if let Some(Node::Boundary {
         name: _,
         first_for_prev: _,
@@ -401,12 +398,27 @@ where
 
       body.push(Node::Boundary {
         name: Some(name),
-        first_for_prev: last_start_index as u64,
+        first_for_prev: last_start_index,
         last_for_next: 0,
       });
     }
 
     Dlx { headers, body }
+  }
+
+  fn num_primary_items(&self) -> usize {
+    self.headers.first().unwrap().node.prev as usize
+  }
+
+  fn body_header(&self, idx: usize) -> &Node<N> {
+    debug_assert!((1..self.headers.len()).contains(&idx));
+    unsafe { self.body.get_unchecked(idx) }
+  }
+
+  /// Remove all subsets which contain the header item `idx`.
+  fn cover(&mut self, idx: usize) {
+    let mut p = self.body_header(idx).next();
+    while p != idx {}
   }
 
   pub fn find_solution(&mut self) -> impl Iterator<Item = N> {
