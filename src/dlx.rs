@@ -264,7 +264,7 @@ where
     }];
     let mut item_map = HashMap::new();
     let mut body = Vec::new();
-    let mut last_start_index = 0;
+    let mut last_start_index;
 
     // Push phony node to first element of body.
     body.push(Node::Boundary {
@@ -317,6 +317,28 @@ where
         let header_idx = *item_map.get(constraint.item()).unwrap() as usize;
         let header = body.get_mut(header_idx).unwrap();
         let prev_idx = header.prev();
+
+        debug_assert!(
+          matches!(
+            (headers.get(header_idx).unwrap(), &constraint),
+            (
+              Header {
+                item: _,
+                node: _,
+                header_type: HeaderType::Primary,
+              },
+              Constraint::Primary(_),
+            ) | (
+              Header {
+                item: _,
+                node: _,
+                header_type: HeaderType::Secondary,
+              },
+              Constraint::Secondary(_),
+            )
+          ),
+          "Expect constraint type to match item type (primary vs. secondary)"
+        );
 
         header.set_prev(idx);
         header.inc_size();

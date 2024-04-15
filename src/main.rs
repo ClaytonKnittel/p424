@@ -3,6 +3,8 @@ use std::io;
 use dlx::{Dlx, HeaderType};
 use kakuro::Kakuro;
 
+use crate::dlx::{ColorItem, Constraint};
+
 mod dlx;
 mod kakuro;
 mod parenthesis_split;
@@ -30,9 +32,12 @@ fn main() -> io::Result<()> {
     vec![
       (1, HeaderType::Primary),
       (2, HeaderType::Primary),
-      (3, HeaderType::Primary),
+      (3, HeaderType::Secondary),
     ],
-    vec![(0, vec![1, 2]), (1, vec![3])],
+    vec![
+      (0, vec![Constraint::Primary(1), Constraint::Primary(2)]),
+      (1, vec![Constraint::Secondary(ColorItem::new(3, 1))]),
+    ],
   );
 
   println!("{}", dlx);
