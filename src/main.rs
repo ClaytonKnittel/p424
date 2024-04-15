@@ -1,6 +1,6 @@
 use std::io;
 
-use dlx::Dlx;
+use dlx::{Dlx, HeaderType};
 use kakuro::Kakuro;
 
 mod dlx;
@@ -26,7 +26,14 @@ fn main() -> io::Result<()> {
     }
   }
 
-  let dlx = Dlx::new(vec![1, 2, 3], vec![vec![1, 2], vec![3]]);
+  let dlx = Dlx::new(
+    vec![
+      (1, HeaderType::Primary),
+      (2, HeaderType::Primary),
+      (3, HeaderType::Primary),
+    ],
+    vec![(0, vec![1, 2]), (1, vec![3])],
+  );
 
   Ok(())
 }
