@@ -1,6 +1,6 @@
 use std::{
-  collections::HashMap,
-  fmt::{self, Display, Formatter},
+  collections::{HashMap, HashSet},
+  fmt::{self, Debug, Display, Formatter},
   hash::Hash,
   iter,
 };
@@ -241,7 +241,8 @@ pub struct Dlx<I, N> {
 
 impl<I, N> Dlx<I, N>
 where
-  I: Hash + Eq + Clone,
+  I: Hash + Eq + Clone + Debug,
+  N: Hash + Eq + Clone + Debug,
 {
   pub fn new<U, S, C, D>(items: U, subsets: S) -> Self
   where
@@ -268,6 +269,7 @@ where
     let mut item_map = HashMap::new();
     let mut body = Vec::new();
     let mut last_start_index;
+    let mut subset_names = HashSet::new();
 
     // Push phony node to first element of body.
     body.push(Node::Boundary {
@@ -292,7 +294,9 @@ where
         .enumerate()
         .map(|(idx, (item, header_type))| {
           let new_idx = idx as u64 + 1;
-          item_map.insert(item.clone(), new_idx);
+          if item_map.insert(item.clone(), new_idx).is_some() {
+            panic!("Duplicate item {:?}", item);
+          }
           body.push(Node::Normal {
             item_node: ListNodeI {
               prev: new_idx,
@@ -330,12 +334,19 @@ where
     });
 
     for (name, constraints) in subsets {
+      if !subset_names.insert(name.clone()) {
+        panic!("Duplicate subset name: {name:?}");
+      }
+
       last_start_index = body.len();
       constraints.into_iter().for_each(|constraint| {
         let constraint: Constraint<I> = constraint.into();
         let idx = body.len();
 
-        let header_idx = *item_map.get(constraint.item()).unwrap() as usize;
+        let header_idx = *item_map
+          .get(constraint.item())
+          .unwrap_or_else(|| panic!("Unknown item {:?}", constraint.item()))
+          as usize;
         let header = body.get_mut(header_idx).unwrap();
         let prev_idx = header.prev();
 

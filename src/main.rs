@@ -31,8 +31,8 @@ fn main() -> io::Result<()> {
   let mut dlx = Dlx::new(
     vec![
       (1, HeaderType::Primary),
-      (2, HeaderType::Primary),
       (3, HeaderType::Secondary),
+      (2, HeaderType::Primary),
     ],
     vec![
       (0, vec![1.into(), 2.into()]),
