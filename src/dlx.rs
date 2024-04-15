@@ -92,6 +92,8 @@ enum NodeType {
   Body {
     /// The assigned color of this node, or None if this is a primary constraint.
     color: Option<u32>,
+    /// The index of the header node associated with this node.
+    top: u32,
   },
 }
 
@@ -216,9 +218,9 @@ where
             NodeType::Header { size } => {
               format!("Header (size: {})", size)
             }
-            NodeType::Body { color } => {
+            NodeType::Body { color, top } => {
               format!(
-                "Body{}",
+                "Body (top: {top}){}",
                 match color {
                   Some(color) => format!(" (color: {color})"),
                   None => "".to_string(),
@@ -380,6 +382,7 @@ where
           },
           node_type: NodeType::Body {
             color: constraint.color(),
+            top: header_idx as u32,
           },
         });
       });
@@ -410,15 +413,95 @@ where
     self.headers.first().unwrap().node.prev as usize
   }
 
+  fn header(&self, idx: usize) -> &Header<I> {
+    debug_assert!((..self.headers.len()).contains(&idx));
+    unsafe { self.headers.get_unchecked(idx) }
+  }
+
+  fn header_mut(&mut self, idx: usize) -> &mut Header<I> {
+    debug_assert!((..self.headers.len()).contains(&idx));
+    unsafe { self.headers.get_unchecked_mut(idx) }
+  }
+
   fn body_header(&self, idx: usize) -> &Node<N> {
-    debug_assert!((1..self.headers.len()).contains(&idx));
+    debug_assert!((1..(self.headers.len() - 1)).contains(&idx));
     unsafe { self.body.get_unchecked(idx) }
   }
 
-  /// Remove all subsets which contain the header item `idx`.
+  fn body_header_mut(&mut self, idx: usize) -> &mut Node<N> {
+    debug_assert!((1..(self.headers.len() - 1)).contains(&idx));
+    unsafe { self.body.get_unchecked_mut(idx) }
+  }
+
+  fn body_node(&self, idx: usize) -> &Node<N> {
+    debug_assert!((self.headers.len()..self.body.len()).contains(&idx));
+    unsafe { self.body.get_unchecked(idx) }
+  }
+
+  fn body_node_mut(&mut self, idx: usize) -> &mut Node<N> {
+    debug_assert!((self.headers.len()..self.body.len()).contains(&idx));
+    unsafe { self.body.get_unchecked_mut(idx) }
+  }
+
+  /// Remove the subset containing the node at `idx` from the grid.
+  fn hide(&mut self, idx: usize) {
+    let mut q = idx + 1;
+    while q != idx {
+      let node = self.body_node(q);
+      match node {
+        Node::Boundary {
+          name: _,
+          first_for_prev,
+          last_for_next: _,
+        } => {
+          q = *first_for_prev;
+        }
+        Node::Normal {
+          item_node,
+          node_type: NodeType::Body { color, top },
+        } => {
+          let top = *top as usize;
+
+          if color.is_some() {
+            let prev_idx = item_node.prev;
+            let next_idx = item_node.next;
+            self.body_node_mut(prev_idx).set_next(next_idx);
+            self.body_node_mut(next_idx).set_prev(prev_idx);
+          }
+          if let Node::Normal {
+            item_node: _,
+            node_type: NodeType::Header { size },
+          } = self.body_node_mut(top)
+          {
+            *size -= 1;
+          } else {
+            unreachable!("Unexpected non-header at index {top}");
+          }
+          q += 1;
+        }
+        Node::Normal {
+          item_node: _,
+          node_type: NodeType::Header { size: _ },
+        } => unreachable!("Unexpected header encountered in hide() at index {q}"),
+      }
+    }
+  }
+
+  /// Remove all subsets which contain the header item `idx`, and hide the item
+  /// from the items list.
   fn cover(&mut self, idx: usize) {
     let mut p = self.body_header(idx).next();
-    while p != idx {}
+    while p != idx {
+      self.hide(p);
+      p = self.body_node(p).next();
+    }
+
+    // Hide this item in the items list.
+    let header = self.header(idx);
+    let prev_idx = header.node.prev;
+    let next_idx = header.node.next;
+    self.header_mut(prev_idx as usize).node.next = next_idx;
+    self.header_mut(next_idx as usize).node.prev = prev_idx;
   }
 
   pub fn find_solution(&mut self) -> impl Iterator<Item = N> {

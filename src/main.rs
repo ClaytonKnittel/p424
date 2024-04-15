@@ -37,6 +37,7 @@ fn main() -> io::Result<()> {
     vec![
       (0, vec![1.into(), 2.into()]),
       (1, vec![Constraint::Secondary(ColorItem::new(3, 1))]),
+      (2, vec![1.into()]),
     ],
   );
 
