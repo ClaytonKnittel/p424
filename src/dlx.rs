@@ -60,6 +60,15 @@ struct Header<I> {
   header_type: HeaderType,
 }
 
+impl<I> Header<I> {
+  fn is_primary(&self) -> bool {
+    match self.header_type {
+      HeaderType::Primary => true,
+      HeaderType::Secondary => false,
+    }
+  }
+}
+
 impl<I> Display for Header<I>
 where
   I: Display,
@@ -123,6 +132,26 @@ impl<I> Node<I> {
         node_type: NodeType::Header { size },
       } => *size += 1,
       _ => unreachable!("Cannot call Node::inc_size() on a non-Header node"),
+    }
+  }
+
+  fn color(&self) -> Option<u32> {
+    match self {
+      Node::Normal {
+        item_node: _,
+        node_type: NodeType::Body { color, top: _ },
+      } => *color,
+      _ => unreachable!("Unexpected color() called on non-body node"),
+    }
+  }
+
+  fn color_mut(&mut self) -> &mut Option<u32> {
+    match self {
+      Node::Normal {
+        item_node: _,
+        node_type: NodeType::Body { color, top: _ },
+      } => color,
+      _ => unreachable!("Unexpected color() called on non-body node"),
     }
   }
 
@@ -583,21 +612,11 @@ where
 
     let mut p = self.body_header(top).next();
     while p != idx {
-      if let Node::Normal {
-        item_node: _,
-        node_type: NodeType::Body {
-          color: p_color,
-          top: _,
-        },
-      } = self.body_node_mut(p)
-      {
-        if *p_color == Some(color) {
-          *p_color = None;
-        } else {
-          self.hide(p);
-        }
+      let p_color = self.body_node_mut(p).color_mut();
+      if *p_color == Some(color) {
+        *p_color = None;
       } else {
-        unreachable!("Unexpected non-body node at index {p}");
+        self.hide(p);
       }
       p = self.body_node(p).next();
     }
@@ -620,23 +639,21 @@ where
 
     let mut p = self.body_header(top).prev();
     while p != idx {
-      if let Node::Normal {
-        item_node: _,
-        node_type: NodeType::Body {
-          color: p_color,
-          top: _,
-        },
-      } = self.body_node_mut(p)
-      {
-        if p_color.is_none() {
-          *p_color = Some(color);
-        } else {
-          self.unhide(p);
-        }
+      let p_color = self.body_node_mut(p).color_mut();
+      if p_color.is_none() {
+        *p_color = Some(color);
       } else {
-        unreachable!("Unexpected non-body node at index {p}");
+        self.unhide(p);
       }
       p = self.body_node(p).prev();
+    }
+  }
+
+  fn commit(&mut self, idx: usize, top: usize) {
+    if self.header(top).is_primary() {
+      self.cover(top);
+    } else if self.body_node(idx).color().is_some() {
+      self.purify(idx);
     }
   }
 
