@@ -43,8 +43,12 @@ fn main() -> io::Result<()> {
 
   println!("{}", dlx);
 
-  for c in dlx.find_solution() {
-    println!("soln: {}", c);
+  if let Some(solution) = dlx.find_solution() {
+    for c in solution {
+      println!("soln: {}", c);
+    }
+  } else {
+    println!("No solution found");
   }
 
   Ok(())

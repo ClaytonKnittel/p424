@@ -125,16 +125,6 @@ enum Node<N> {
 }
 
 impl<I> Node<I> {
-  fn inc_size(&mut self) {
-    match self {
-      Node::Normal {
-        item_node: _,
-        node_type: NodeType::Header { size },
-      } => *size += 1,
-      _ => unreachable!("Cannot call Node::inc_size() on a non-Header node"),
-    }
-  }
-
   fn color(&self) -> Option<u32> {
     match self {
       Node::Normal {
@@ -152,6 +142,26 @@ impl<I> Node<I> {
         node_type: NodeType::Body { color, top: _ },
       } => color,
       _ => unreachable!("Unexpected color() called on non-body node"),
+    }
+  }
+
+  fn len(&self) -> usize {
+    match self {
+      Node::Normal {
+        item_node: _,
+        node_type: NodeType::Header { size },
+      } => *size,
+      _ => unreachable!("Node::len() called on non-header node"),
+    }
+  }
+
+  fn len_mut(&mut self) -> &mut usize {
+    match self {
+      Node::Normal {
+        item_node: _,
+        node_type: NodeType::Header { size },
+      } => size,
+      _ => unreachable!("Node::len_mut() called on non-header node"),
     }
   }
 
@@ -354,6 +364,16 @@ where
       header_type: HeaderType::Secondary,
     });
     headers.get_mut(0).unwrap().node.prev = primary_headers_len;
+    headers
+      .get_mut(primary_headers_len as usize)
+      .unwrap()
+      .node
+      .next = 0;
+    headers
+      .get_mut(primary_headers_len as usize + 1)
+      .unwrap()
+      .node
+      .prev = last_idx as u32;
     headers.get_mut(last_idx).unwrap().node.next = primary_headers_len + 1;
 
     body.push(Node::Boundary {
@@ -401,7 +421,7 @@ where
         );
 
         header.set_prev(idx);
-        header.inc_size();
+        *header.len_mut() += 1;
         body.get_mut(prev_idx).unwrap().set_next(idx);
 
         body.push(Node::Normal {
@@ -496,15 +516,7 @@ where
             self.body_node_mut(prev_idx).set_next(next_idx);
             self.body_node_mut(next_idx).set_prev(prev_idx);
           }
-          if let Node::Normal {
-            item_node: _,
-            node_type: NodeType::Header { size },
-          } = self.body_node_mut(top)
-          {
-            *size -= 1;
-          } else {
-            unreachable!("Unexpected non-header at index {top}");
-          }
+          *self.body_header_mut(top).len_mut() -= 1;
           q += 1;
         }
         Node::Normal {
@@ -540,15 +552,7 @@ where
             self.body_node_mut(prev_idx).set_next(q);
             self.body_node_mut(next_idx).set_prev(q);
           }
-          if let Node::Normal {
-            item_node: _,
-            node_type: NodeType::Header { size },
-          } = self.body_node_mut(top)
-          {
-            *size += 1;
-          } else {
-            unreachable!("Unexpected non-header at index {top}");
-          }
+          *self.body_header_mut(top).len_mut() += 1;
           q -= 1;
         }
         Node::Normal {
@@ -657,8 +661,67 @@ where
     }
   }
 
-  pub fn find_solution(&mut self) -> impl Iterator<Item = N> {
-    iter::empty()
+  fn uncommit(&mut self, idx: usize, top: usize) {
+    if self.header(top).is_primary() {
+      self.uncover(top);
+    } else if self.body_node(idx).color().is_some() {
+      self.unpurify(idx);
+    }
+  }
+
+  /// Chooses the index of the next item to try covering, using the LRV
+  /// heuristic (least remaining values). Returns None if there are no items
+  /// left, meaning a solution has been found.
+  fn choose_item(&self) -> Option<u32> {
+    let mut opt = self.header(0).node.next;
+    let mut best_opt = (None, 0);
+    while opt != 0 {
+      let len = self.body_header(opt as usize).len();
+      best_opt = match best_opt {
+        (Some(_), min_len) => {
+          if min_len > len {
+            (Some(opt), len)
+          } else {
+            best_opt
+          }
+        }
+        (None, _) => (Some(opt), len),
+      };
+
+      opt = self.header(opt as usize).node.next;
+    }
+
+    best_opt.0
+  }
+
+  fn set_name_for_node(&self, idx: usize) -> N {
+    ((idx + 1)..)
+      .find_map(|q| match self.body_node(q) {
+        Node::Boundary {
+          name,
+          first_for_prev: _,
+          last_for_next: _,
+        } => Some(name.clone().unwrap()),
+        Node::Normal {
+          item_node: _,
+          node_type: _,
+        } => None,
+      })
+      .unwrap()
+  }
+
+  pub fn find_solution(&mut self) -> Option<impl Iterator<Item = N> + '_> {
+    let mut solution = Vec::new();
+    match self.choose_item() {
+      Some(item) => {
+        solution.push(item as usize);
+      }
+      None => {
+        return Some(solution.into_iter().map(|p| self.set_name_for_node(p)));
+      }
+    }
+
+    None
   }
 }
 
