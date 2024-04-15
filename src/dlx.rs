@@ -2,7 +2,6 @@ use std::{
   collections::{HashMap, HashSet},
   fmt::{self, Debug, Display, Formatter},
   hash::Hash,
-  iter,
 };
 
 pub struct ColorItem<I> {
@@ -246,6 +245,7 @@ where
 }
 
 pub struct Dlx<I, N> {
+  num_primary_items: usize,
   headers: Vec<Header<I>>,
   body: Vec<Node<N>>,
 }
@@ -420,11 +420,12 @@ where
       });
     }
 
-    Dlx { headers, body }
-  }
-
-  fn num_primary_items(&self) -> usize {
-    self.headers.first().unwrap().node.prev as usize
+    let num_primary_items = headers.first().unwrap().node.prev as usize;
+    Dlx {
+      headers,
+      body,
+      num_primary_items,
+    }
   }
 
   fn header(&self, idx: usize) -> &Header<I> {
@@ -475,6 +476,7 @@ where
 
   /// Remove the subset containing the node at `idx` from the grid.
   fn hide(&mut self, idx: usize) {
+    println!("Hiding guy at {idx}");
     let mut q = idx + 1;
     while q != idx {
       match self.body_node(q) {
@@ -483,16 +485,16 @@ where
         }
         Node::Normal {
           item_node,
-          node_type: NodeType::Body { color, top },
+          node_type: NodeType::Body { top, .. },
         } => {
           let top = *top as usize;
 
-          if color.is_some() {
-            let prev_idx = item_node.prev;
-            let next_idx = item_node.next;
-            self.body_node_mut(prev_idx).set_next(next_idx);
-            self.body_node_mut(next_idx).set_prev(prev_idx);
-          }
+          // if color.is_some() {
+          let prev_idx = item_node.prev;
+          let next_idx = item_node.next;
+          self.node_mut(prev_idx).set_next(next_idx);
+          self.node_mut(next_idx).set_prev(prev_idx);
+          // }
           *self.body_header_mut(top).len_mut() -= 1;
           q += 1;
         }
@@ -507,6 +509,7 @@ where
   /// Reverts `hide(idx)`, assuming the state of Dlx was exactly as it was when
   /// `hide(idx)` was called.
   fn unhide(&mut self, idx: usize) {
+    println!("Unhiding {idx}");
     let mut q = idx - 1;
     while q != idx {
       match self.body_node(q) {
@@ -515,16 +518,16 @@ where
         }
         Node::Normal {
           item_node,
-          node_type: NodeType::Body { color, top },
+          node_type: NodeType::Body { top, .. },
         } => {
           let top = *top as usize;
 
-          if color.is_some() {
-            let prev_idx = item_node.prev;
-            let next_idx = item_node.next;
-            self.body_node_mut(prev_idx).set_next(q);
-            self.body_node_mut(next_idx).set_prev(q);
-          }
+          // if color.is_some() {
+          let prev_idx = item_node.prev;
+          let next_idx = item_node.next;
+          self.node_mut(prev_idx).set_next(q);
+          self.node_mut(next_idx).set_prev(q);
+          // }
           *self.body_header_mut(top).len_mut() += 1;
           q -= 1;
         }
@@ -539,7 +542,13 @@ where
   /// Remove all subsets which contain the header item `idx`, and hide the item
   /// from the items list.
   fn cover(&mut self, idx: usize) {
-    debug_assert!((1..=self.num_primary_items()).contains(&idx));
+    println!("Covering {idx}");
+    debug_assert!(
+      (1..=self.num_primary_items).contains(&idx),
+      "{} vs 1..={}",
+      idx,
+      self.num_primary_items
+    );
     let mut p = self.body_header(idx).next();
     while p != idx {
       self.hide(p);
@@ -557,7 +566,8 @@ where
   /// Reverts `cover(idx)`, assuming the state of Dlx was exactly as it was
   /// when `cover(idx)` was called.
   fn uncover(&mut self, idx: usize) {
-    debug_assert!((1..=self.num_primary_items()).contains(&idx));
+    println!("Uncovering {idx}");
+    debug_assert!((1..=self.num_primary_items).contains(&idx));
     // Put this item back in the items list.
     let header = self.header(idx);
     let prev_idx = header.node.prev;
@@ -575,7 +585,8 @@ where
   /// Covers all subsets with secondary constraints which don't have the same
   /// color as the constraint at index `idx`.
   fn purify(&mut self, idx: usize) {
-    debug_assert!(((self.num_primary_items() + 1)..self.headers.len()).contains(&idx));
+    println!("Purifying {idx}");
+    debug_assert!(((self.num_primary_items + 1)..self.headers.len()).contains(&idx));
     let (color, top) = match self.body_node(idx) {
       Node::Normal {
         node_type: NodeType::Body {
@@ -602,7 +613,8 @@ where
   /// Reverts `purify(idx)`, assuming the state of Dlx was exactly as it was
   /// when `purify(idx)` was called.
   fn unpurify(&mut self, idx: usize) {
-    debug_assert!(((self.num_primary_items() + 1)..self.headers.len()).contains(&idx));
+    println!("Unpurifying {idx}");
+    debug_assert!(((self.num_primary_items + 1)..self.headers.len()).contains(&idx));
     let (color, top) = match self.body_node(idx) {
       Node::Normal {
         node_type: NodeType::Body {
@@ -627,6 +639,7 @@ where
   }
 
   fn commit(&mut self, idx: usize, top: usize) {
+    println!("Committing {idx} (top: {top})");
     if self.header(top).is_primary() {
       self.cover(top);
     } else if self.body_node(idx).color().is_some() {
@@ -635,6 +648,7 @@ where
   }
 
   fn uncommit(&mut self, idx: usize, top: usize) {
+    println!("Uncommitting {idx} (top: {top})");
     if self.header(top).is_primary() {
       self.uncover(top);
     } else if self.body_node(idx).color().is_some() {
@@ -726,7 +740,11 @@ where
       .unwrap()
   }
 
-  pub fn find_solution(&mut self) -> Option<impl Iterator<Item = N> + '_> {
+  pub fn find_solution(&mut self) -> Option<impl Iterator<Item = N> + '_>
+  where
+    I: Display,
+    N: Display,
+  {
     let mut solution = Vec::new();
 
     'cover_new_item: loop {
@@ -740,6 +758,8 @@ where
           return Some(solution.into_iter().map(|p| self.set_name_for_node(p)));
         }
       }
+      println!("d{} for {}", solution.len(), solution.last().unwrap());
+      println!("{}", self);
 
       while let Some(p) = solution.pop() {
         // Try exploring the next choice.
