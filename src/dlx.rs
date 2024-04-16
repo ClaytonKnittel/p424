@@ -41,6 +41,12 @@ impl<I> From<I> for Constraint<I> {
   }
 }
 
+impl<I> From<ColorItem<I>> for Constraint<I> {
+  fn from(value: ColorItem<I>) -> Self {
+    Constraint::Secondary(value)
+  }
+}
+
 struct ListNodeI<I> {
   prev: I,
   next: I,
@@ -68,16 +74,16 @@ impl<I> Header<I> {
   }
 }
 
-impl<I> Display for Header<I>
+impl<I> Debug for Header<I>
 where
-  I: Display,
+  I: Debug,
 {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     write!(
       f,
       "{} (prev: {}, next: {}) ({})",
       match &self.item {
-        Some(item) => item.to_string(),
+        Some(item) => format!("{item:?}"),
         None => "[None]".to_string(),
       },
       self.node.prev,
@@ -193,9 +199,9 @@ impl<I> Node<I> {
   }
 }
 
-impl<N> Display for Node<N>
+impl<N> Debug for Node<N>
 where
-  N: Display,
+  N: Debug,
 {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     match self {
@@ -208,7 +214,7 @@ where
           f,
           "{}: (first_prev: {}, last_next: {})",
           match name {
-            Some(name) => name.to_string(),
+            Some(name) => format!("{name:?}"),
             None => "[None]".to_string(),
           },
           first_for_prev,
@@ -542,7 +548,7 @@ where
   /// Remove all subsets which contain the header item `idx`, and hide the item
   /// from the items list.
   fn cover(&mut self, idx: usize) {
-    println!("Covering {idx}");
+    println!("Covering {:?}", self.header(idx).item.as_ref().unwrap());
     debug_assert!(
       (1..=self.num_primary_items).contains(&idx),
       "{} vs 1..={}",
@@ -566,7 +572,7 @@ where
   /// Reverts `cover(idx)`, assuming the state of Dlx was exactly as it was
   /// when `cover(idx)` was called.
   fn uncover(&mut self, idx: usize) {
-    println!("Uncovering {idx}");
+    println!("Uncovering {:?}", self.header(idx).item.as_ref().unwrap());
     debug_assert!((1..=self.num_primary_items).contains(&idx));
     // Put this item back in the items list.
     let header = self.header(idx);
@@ -585,8 +591,6 @@ where
   /// Covers all subsets with secondary constraints which don't have the same
   /// color as the constraint at index `idx`.
   fn purify(&mut self, idx: usize) {
-    println!("Purifying {idx}");
-    debug_assert!(((self.num_primary_items + 1)..self.headers.len()).contains(&idx));
     let (color, top) = match self.body_node(idx) {
       Node::Normal {
         node_type: NodeType::Body {
@@ -597,9 +601,10 @@ where
       } => (*color, *top as usize),
       _ => unreachable!("Unexpected uncolored node for secondary constraint at index {idx}."),
     };
+    println!("Purifying {idx} (top {top}, color {color})");
 
     let mut p = self.body_header(top).next();
-    while p != idx {
+    while p != top {
       let p_color = self.body_node_mut(p).color_mut();
       if *p_color == Some(color) {
         *p_color = None;
@@ -627,7 +632,7 @@ where
     };
 
     let mut p = self.body_header(top).prev();
-    while p != idx {
+    while p != top {
       let p_color = self.body_node_mut(p).color_mut();
       if p_color.is_none() {
         *p_color = Some(color);
@@ -658,6 +663,7 @@ where
 
   /// Covers all other items take by the subset containing the node at `idx`.
   fn cover_remaining_choices(&mut self, idx: usize) {
+    println!("Covering remaining for {idx}");
     let mut p = idx + 1;
     while p != idx {
       match self.body_node(p) {
@@ -683,6 +689,7 @@ where
 
   /// Covers all other items take by the subset containing the node at `idx`.
   fn uncover_remaining_choices(&mut self, idx: usize) {
+    println!("Uncovering remaining for {idx}");
     let mut p = idx - 1;
     while p != idx {
       match self.body_node(p) {
@@ -759,9 +766,17 @@ where
         }
       }
       println!("d{} for {}", solution.len(), solution.last().unwrap());
-      println!("{}", self);
+      // println!("{}", self);
 
       while let Some(p) = solution.pop() {
+        if let Node::Normal {
+          node_type: NodeType::Body { .. },
+          ..
+        } = self.node(p)
+        {
+          self.uncover_remaining_choices(p);
+        }
+
         // Try exploring the next choice.
         let p = self.node(p).next();
 
@@ -775,12 +790,12 @@ where
             self.uncover(p);
           }
           Node::Normal {
-            node_type: NodeType::Body { top, .. },
+            node_type: NodeType::Body { .. },
             ..
           } => {
             // We can try exploring this subset.
             solution.push(p);
-            self.commit(p, *top as usize);
+            self.cover_remaining_choices(p);
             continue 'cover_new_item;
           }
           Node::Boundary { .. } => unreachable!("Unexpected boundary node found in queue: {p}"),
@@ -795,17 +810,17 @@ where
   }
 }
 
-impl<I, N> Display for Dlx<I, N>
+impl<I, N> Debug for Dlx<I, N>
 where
-  I: Display,
-  N: Display,
+  I: Debug,
+  N: Debug,
 {
   fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
     for (idx, header) in self.headers.iter().enumerate() {
-      writeln!(f, "{idx:<3} H: {header}")?;
+      writeln!(f, "{idx:<3} H: {header:?}")?;
     }
     for (idx, node) in self.body.iter().enumerate() {
-      writeln!(f, "{idx:<3} N: {}", node)?;
+      writeln!(f, "{idx:<3} N: {:?}", node)?;
     }
     Ok(())
   }
@@ -813,6 +828,10 @@ where
 
 #[cfg(test)]
 mod test {
+  use itertools::Itertools;
+
+  use crate::dlx::{ColorItem, Constraint};
+
   use super::{Dlx, HeaderType};
 
   #[test]
@@ -831,5 +850,50 @@ mod test {
     assert!(dlx
       .find_solution()
       .is_some_and(|solution| solution.eq(vec![0].into_iter())));
+  }
+
+  #[test]
+  fn test_choose_two() {
+    let mut dlx = Dlx::new(
+      vec![
+        ('p', HeaderType::Primary),
+        ('q', HeaderType::Primary),
+        ('r', HeaderType::Primary),
+      ],
+      vec![
+        (0, vec!['p', 'q']),
+        (1, vec!['p', 'r']),
+        (2, vec!['p']),
+        (3, vec!['q']),
+      ],
+    );
+
+    assert!(dlx
+      .find_solution()
+      .is_some_and(|solution| { solution.sorted().eq(vec![1, 3].into_iter()) }));
+  }
+
+  #[test]
+  fn test_simple_colors() {
+    let mut dlx = Dlx::new(
+      vec![
+        ('p', HeaderType::Primary),
+        ('q', HeaderType::Primary),
+        ('a', HeaderType::Secondary),
+      ],
+      vec![
+        (
+          0,
+          vec![Constraint::Primary('p'), ColorItem::new('a', 1).into()],
+        ),
+        (1, vec!['p'.into(), ColorItem::new('a', 2).into()]),
+        (2, vec!['q'.into(), ColorItem::new('a', 3).into()]),
+        (3, vec!['q'.into(), ColorItem::new('a', 1).into()]),
+      ],
+    );
+
+    assert!(dlx
+      .find_solution()
+      .is_some_and(|solution| { solution.sorted().eq(vec![0, 3].into_iter()) }));
   }
 }
