@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{collections::HashSet, fmt::Display};
 
 use termion::style;
 
@@ -12,7 +12,66 @@ impl Sudoku {
   }
 
   pub fn solve(&mut self) -> bool {
-    false
+    #[derive(PartialEq, Eq, Hash, Clone)]
+    enum Item {
+      Cell { row: u32, col: u32 },
+      Row { col: u32, digit: u32 },
+      Col { row: u32, digit: u32 },
+      Box { idx: u32, digit: u32 },
+    }
+
+    let mut items: HashSet<Item> = (0..81)
+      .flat_map(|i| {
+        let row = i % 9;
+        let col = i / 9;
+        [
+          Item::Cell { row, col },
+          Item::Row {
+            col,
+            digit: row + 1,
+          },
+          Item::Col {
+            row,
+            digit: col + 1,
+          },
+          Item::Box {
+            idx: row,
+            digit: col + 1,
+          },
+        ]
+        .into_iter()
+      })
+      .collect();
+
+    let valid = self
+      .grid
+      .iter()
+      .enumerate()
+      .fold(true, |valid, (row, digits)| {
+        let row = row as u32;
+        valid
+          && digits
+            .iter()
+            .enumerate()
+            .filter(|(_, digit)| **digit != 0)
+            .fold(true, |valid, (col, digit)| {
+              let col = col as u32;
+              let digit = *digit;
+              let idx = (row / 3) * 3 + col / 3;
+
+              valid
+                && items.remove(&Item::Cell { row, col })
+                && items.remove(&Item::Row { col, digit })
+                && items.remove(&Item::Col { row, digit })
+                && items.remove(&Item::Box { idx, digit })
+            })
+      });
+
+    if !valid {
+      return false;
+    }
+
+    true
   }
 }
 

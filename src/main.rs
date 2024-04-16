@@ -74,7 +74,7 @@ fn main() -> io::Result<()> {
     println!("No solution found");
   }
 
-  let sudoku = Sudoku::new([
+  let mut sudoku = Sudoku::new([
     [0, 0, 4, 0, 5, 0, 0, 0, 0],
     [9, 0, 0, 7, 3, 4, 6, 0, 0],
     [0, 0, 3, 0, 2, 1, 0, 4, 9],
@@ -87,6 +87,7 @@ fn main() -> io::Result<()> {
   ]);
 
   println!("{sudoku}");
+  println!("Solved: {}", sudoku.solve());
 
   Ok(())
 }
