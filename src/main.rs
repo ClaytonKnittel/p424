@@ -88,6 +88,7 @@ fn main() -> io::Result<()> {
 
   println!("{sudoku}");
   println!("Solved: {}", sudoku.solve());
+  println!("{sudoku}");
 
   Ok(())
 }

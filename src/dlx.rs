@@ -1,6 +1,6 @@
 use std::{
   collections::{HashMap, HashSet},
-  fmt::{self, Debug, Display, Formatter},
+  fmt::{self, Debug, Formatter},
   hash::Hash,
 };
 
@@ -749,8 +749,8 @@ where
 
   pub fn find_solution(&mut self) -> Option<impl Iterator<Item = N> + '_>
   where
-    I: Display,
-    N: Display,
+    I: Debug,
+    N: Debug,
   {
     let mut solution = Vec::new();
 
