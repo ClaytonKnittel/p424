@@ -116,6 +116,8 @@ impl Sudoku {
         .map(|(choice, subset)| (choice, subset.map(Constraint::Primary))),
     );
 
+    println!("{:?}", dlx);
+
     if let Some(choices) = dlx.find_solution() {
       for choice in choices {
         self.grid[choice.row as usize][choice.col as usize] = choice.digit;
@@ -187,7 +189,7 @@ mod test {
       [0, 0, 9, 1, 8, 2, 0, 0, 3],
       [0, 0, 0, 0, 6, 0, 1, 0, 0],
     ]);
-    const soln: [[u32; 9]; 9] = [
+    const SOLN: [[u32; 9]; 9] = [
       [2, 6, 4, 8, 5, 9, 3, 1, 7],
       [9, 8, 1, 7, 3, 4, 6, 5, 2],
       [7, 5, 3, 6, 2, 1, 8, 4, 9],
@@ -200,6 +202,6 @@ mod test {
     ];
 
     sudoku.solve();
-    assert_eq!(sudoku.grid, soln);
+    assert_eq!(sudoku.grid, SOLN);
   }
 }
