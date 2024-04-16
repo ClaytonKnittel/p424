@@ -482,7 +482,7 @@ where
 
   /// Remove the subset containing the node at `idx` from the grid.
   fn hide(&mut self, idx: usize) {
-    println!("Hiding guy at {idx}");
+    // println!("Hiding guy at {idx}");
     let mut q = idx + 1;
     while q != idx {
       match self.body_node(q) {
@@ -515,7 +515,7 @@ where
   /// Reverts `hide(idx)`, assuming the state of Dlx was exactly as it was when
   /// `hide(idx)` was called.
   fn unhide(&mut self, idx: usize) {
-    println!("Unhiding {idx}");
+    // println!("Unhiding {idx}");
     let mut q = idx - 1;
     while q != idx {
       match self.body_node(q) {
@@ -548,7 +548,7 @@ where
   /// Remove all subsets which contain the header item `idx`, and hide the item
   /// from the items list.
   fn cover(&mut self, idx: usize) {
-    println!("Covering {:?}", self.header(idx).item.as_ref().unwrap());
+    // println!("Covering {:?}", self.header(idx).item.as_ref().unwrap());
     debug_assert!(
       (1..=self.num_primary_items).contains(&idx),
       "{} vs 1..={}",
@@ -572,7 +572,7 @@ where
   /// Reverts `cover(idx)`, assuming the state of Dlx was exactly as it was
   /// when `cover(idx)` was called.
   fn uncover(&mut self, idx: usize) {
-    println!("Uncovering {:?}", self.header(idx).item.as_ref().unwrap());
+    // println!("Uncovering {:?}", self.header(idx).item.as_ref().unwrap());
     debug_assert!((1..=self.num_primary_items).contains(&idx));
     // Put this item back in the items list.
     let header = self.header(idx);
@@ -601,7 +601,7 @@ where
       } => (*color, *top as usize),
       _ => unreachable!("Unexpected uncolored node for secondary constraint at index {idx}."),
     };
-    println!("Purifying {idx} (top {top}, color {color})");
+    // println!("Purifying {idx} (top {top}, color {color})");
 
     let mut p = self.body_header(top).next();
     while p != top {
@@ -618,7 +618,7 @@ where
   /// Reverts `purify(idx)`, assuming the state of Dlx was exactly as it was
   /// when `purify(idx)` was called.
   fn unpurify(&mut self, idx: usize) {
-    println!("Unpurifying {idx}");
+    // println!("Unpurifying {idx}");
     debug_assert!(((self.num_primary_items + 1)..self.headers.len()).contains(&idx));
     let (color, top) = match self.body_node(idx) {
       Node::Normal {
@@ -644,7 +644,7 @@ where
   }
 
   fn commit(&mut self, idx: usize, top: usize) {
-    println!("Committing {idx} (top: {top})");
+    // println!("Committing {idx} (top: {top})");
     if self.header(top).is_primary() {
       self.cover(top);
     } else if self.body_node(idx).color().is_some() {
@@ -653,7 +653,7 @@ where
   }
 
   fn uncommit(&mut self, idx: usize, top: usize) {
-    println!("Uncommitting {idx} (top: {top})");
+    // println!("Uncommitting {idx} (top: {top})");
     if self.header(top).is_primary() {
       self.uncover(top);
     } else if self.body_node(idx).color().is_some() {
@@ -663,7 +663,7 @@ where
 
   /// Covers all other items take by the subset containing the node at `idx`.
   fn cover_remaining_choices(&mut self, idx: usize) {
-    println!("Covering remaining for {idx}");
+    // println!("Covering remaining for {idx}");
     let mut p = idx + 1;
     while p != idx {
       match self.body_node(p) {
@@ -689,7 +689,7 @@ where
 
   /// Covers all other items take by the subset containing the node at `idx`.
   fn uncover_remaining_choices(&mut self, idx: usize) {
-    println!("Uncovering remaining for {idx}");
+    // println!("Uncovering remaining for {idx}");
     let mut p = idx - 1;
     while p != idx {
       match self.body_node(p) {
@@ -765,8 +765,7 @@ where
           return Some(solution.into_iter().map(|p| self.set_name_for_node(p)));
         }
       }
-      println!("d{} for {}", solution.len(), solution.last().unwrap());
-      // println!("{}", self);
+      // println!("d{} for {}", solution.len(), solution.last().unwrap());
 
       while let Some(p) = solution.pop() {
         if let Node::Normal {
