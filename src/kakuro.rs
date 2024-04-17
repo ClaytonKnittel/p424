@@ -269,11 +269,11 @@ impl Kakuro {
       Tile { idx: u32 },
       Letter { letter: char },
     }
-    let mut items = HashSet::new();
+    /*let mut items = HashSet::new();
 
     for ((clue_idx, clue), tiles) in self.enumerate_lines() {
       for (tile_idx, tile) in tiles {}
-    }
+    }*/
   }
 }
 

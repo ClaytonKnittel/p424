@@ -20,12 +20,17 @@ where
   }
 
   fn find(&mut self, var: V) -> &mut Term<V> {
-    match self.vars.iter_mut().find(|&term| term.var == var) {
-      Some(term) => term,
-      None => {
-        self.vars.push(Term { var, factor: 0 });
-        self.vars.last_mut().unwrap()
-      }
+    if let Some(idx) = self
+      .vars
+      .iter()
+      .enumerate()
+      .find(|(_, term)| term.var == var)
+      .map(|(idx, _)| idx)
+    {
+      &mut self.vars[idx]
+    } else {
+      self.vars.push(Term { var, factor: 0 });
+      self.vars.last_mut().unwrap()
     }
   }
 
@@ -37,10 +42,11 @@ where
     &self,
   ) -> impl Iterator<Item = impl Iterator<Item = (V, u32)> + '_> + '_ {
     repeat(())
+      .take(10usize.pow(self.vars.len() as u32))
       .scan(
         (self.vars.iter().map(|_| 0).collect::<Vec<_>>(), 0),
         move |(digs, total), _| {
-          if !digs
+          digs
             .iter_mut()
             .zip(self.vars.iter())
             .fold_while((), |_, (digit, var)| {
@@ -54,12 +60,8 @@ where
                 FoldWhile::Continue(())
               }
             })
-            .is_done()
-          {
-            None
-          } else {
-            Some((digs.clone(), *total))
-          }
+            .is_done();
+          Some((digs.clone(), *total))
         },
       )
       .filter(|&(_, total)| total == 0)
@@ -67,8 +69,31 @@ where
         self
           .vars
           .iter()
-          .zip(digs.into_iter())
+          .zip(digs)
           .map(|(Term { var, .. }, digit)| (var.clone(), digit))
       })
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use std::iter;
+
+  use super::LinearSolver;
+
+  #[test]
+  fn test_easy() {
+    #[derive(Clone, PartialEq, Eq, Debug)]
+    enum Vars {
+      X,
+    }
+
+    let mut slv = LinearSolver::new();
+    slv.add(Vars::X, 1);
+
+    assert!(slv
+      .find_all_solutions()
+      .map(|soln| soln.collect::<Vec<_>>())
+      .eq(iter::once(vec![(Vars::X, 0)])));
   }
 }
