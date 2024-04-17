@@ -1,12 +1,21 @@
 use std::{
   collections::HashSet,
+  convert::identity,
   fmt::{self, Display},
   fs::File,
   io::{self, BufRead, BufReader},
   iter,
+  ops::ControlFlow,
 };
 
-use crate::parenthesis_split::ParenthesesAwareSplit;
+use itertools::Itertools;
+
+use crate::{
+  dlx::{ColorItem, Constraint, Dlx},
+  linear_solver::LinearSolver,
+  parenthesis_split::ParenthesesAwareSplit,
+  solver,
+};
 
 #[derive(Clone)]
 pub enum TotalClue {
@@ -135,6 +144,14 @@ impl fmt::Display for Tile {
   }
 }
 
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+enum DlxItem {
+  Sum { idx: u32, vertical: bool },
+  Tile { idx: u32 },
+  Letter { letter: char },
+  LetterValue { value: u32 },
+}
+
 pub struct Kakuro {
   n: usize,
   tiles: Vec<Tile>,
@@ -208,27 +225,24 @@ impl Kakuro {
     row: usize,
     col: usize,
     vertical: bool,
-  ) -> impl Iterator<Item = (usize, UnknownTile)> + '_ {
+  ) -> impl Iterator<Item = DlxItem> + '_ {
     let idx = if vertical { row } else { col };
     let step = if vertical { self.n } else { 1 };
     (1..(self.n - idx)).map_while(move |idx| {
       let idx = self.get_idx(row, col) + idx * step;
-      if let Tile::Unknown(unknown) = self.tiles.get(idx).unwrap() {
-        Some((idx, unknown.clone()))
-      } else {
-        None
+      match self.tiles.get(idx) {
+        Some(Tile::Unknown(UnknownTile::Blank)) => Some(DlxItem::Tile { idx: idx as u32 }),
+        Some(Tile::Unknown(UnknownTile::Prefilled { hint })) => {
+          Some(DlxItem::Letter { letter: *hint })
+        }
+        _ => None,
       }
     })
   }
 
-  pub fn enumerate_lines(
+  fn enumerate_lines(
     &self,
-  ) -> impl Iterator<
-    Item = (
-      (usize, TotalClue),
-      impl Iterator<Item = (usize, UnknownTile)> + '_,
-    ),
-  > + '_ {
+  ) -> impl Iterator<Item = ((DlxItem, TotalClue), impl Iterator<Item = DlxItem> + '_)> + '_ {
     (0..self.n).flat_map(move |row| {
       (0..self.n)
         .filter_map(move |col| {
@@ -240,7 +254,13 @@ impl Kakuro {
               total
                 .map_horizontal(|horizontal_clue| {
                   iter::once(Some((
-                    (self.get_idx(row, col), horizontal_clue),
+                    (
+                      DlxItem::Sum {
+                        idx: self.get_idx(row, col) as u32,
+                        vertical: false,
+                      },
+                      horizontal_clue,
+                    ),
                     self.take_unknowns(row, col, false),
                   )))
                 })
@@ -250,7 +270,13 @@ impl Kakuro {
                   total
                     .map_vertical(|vertical_clue| {
                       iter::once(Some((
-                        (self.get_idx(row, col), vertical_clue),
+                        (
+                          DlxItem::Sum {
+                            idx: self.get_idx(row, col) as u32,
+                            vertical: true,
+                          },
+                          vertical_clue,
+                        ),
                         self.take_unknowns(row, col, true),
                       )))
                     })
@@ -263,17 +289,80 @@ impl Kakuro {
     })
   }
 
-  fn solve(&self) {
-    enum Item {
-      Sum { idx: u32 },
-      Tile { idx: u32 },
-      Letter { letter: char },
-    }
-    /*let mut items = HashSet::new();
+  fn construct_dlx(
+    items: Vec<(DlxItem, u32)>,
+  ) -> Option<impl Iterator<Item = Constraint<DlxItem>>> {
+    let values =
+      match items
+        .iter()
+        .try_fold([(); 10].map(|_| None), |mut values_array, (item, value)| {
+          let value = *value;
+          match item {
+            DlxItem::Letter { .. } => {
+              if values_array[value as usize].is_some() {
+                ControlFlow::Break(())
+              } else {
+                values_array[value as usize] = Some(DlxItem::LetterValue { value });
+                ControlFlow::Continue(values_array)
+              }
+            }
+            _ => ControlFlow::Continue(values_array),
+          }
+        }) {
+        ControlFlow::Break(_) => {
+          return None;
+        }
+        ControlFlow::Continue(values_array) => values_array,
+      };
 
-    for ((clue_idx, clue), tiles) in self.enumerate_lines() {
-      for (tile_idx, tile) in tiles {}
-    }*/
+    Some(
+      items
+        .into_iter()
+        .chain(
+          values
+            .into_iter()
+            .enumerate()
+            .filter_map(|(idx, item)| item.map(|item| (item, idx as u32))),
+        )
+        .map(|(item, color)| ColorItem::new(item, color).into()),
+    )
+  }
+
+  pub fn solve(&self) {
+    for line in self.enumerate_lines() {
+      println!(
+        "Line: {}: {}",
+        line.0 .1,
+        line
+          .1
+          .map(|item| format!("{item:?}"))
+          .collect::<Vec<_>>()
+          .join(", "),
+      );
+    }
+
+    // let mut items = HashSet::new();
+
+    for ((item, clue), items) in self.enumerate_lines() {
+      let mut solver = LinearSolver::new();
+      match clue {
+        TotalClue::OneDigit(letter) => {
+          solver.add(DlxItem::Letter { letter }, -1);
+        }
+        TotalClue::TwoDigit { ones, tens } => {
+          solver.add(DlxItem::Letter { letter: ones }, -1);
+          solver.add(DlxItem::Letter { letter: tens }, -10);
+        }
+      }
+      for item in items {
+        solver.add(item, 1);
+      }
+
+      println!("Solutions:");
+      for soln in solver.find_all_solutions().map(Itertools::collect_vec) {
+        println!("{:?}", soln);
+      }
+    }
   }
 }
 

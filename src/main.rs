@@ -10,21 +10,13 @@ mod solver;
 mod sudoku;
 
 fn main() -> io::Result<()> {
-  let kakuros = Kakuro::from_file("p424_kakuro200.txt")?;
+  // let kakuros = Kakuro::from_file("p424_kakuro200.txt")?;
+  let kakuros = Kakuro::from_file("kakuro_test.txt")?;
   for kakuro in kakuros.iter().take(1) {
     println!("{}", kakuro);
 
-    for line in kakuro.enumerate_lines() {
-      println!(
-        "Line: {}: {}",
-        line.0 .1,
-        line
-          .1
-          .map(|(idx, tile)| format!("({} {})", tile, idx))
-          .collect::<Vec<_>>()
-          .join(", "),
-      );
-    }
+    kakuro.solve();
+    break;
   }
 
   Ok(())
