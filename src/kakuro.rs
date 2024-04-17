@@ -1,5 +1,6 @@
 use std::{
-  fmt,
+  collections::HashSet,
+  fmt::{self, Display},
   fs::File,
   io::{self, BufRead, BufReader},
   iter,
@@ -8,15 +9,46 @@ use std::{
 use crate::parenthesis_split::ParenthesesAwareSplit;
 
 #[derive(Clone)]
+pub enum TotalClue {
+  OneDigit(char),
+  TwoDigit { ones: char, tens: char },
+}
+
+impl TotalClue {
+  fn new(clue: &str) -> TotalClue {
+    if clue.len() == 1 {
+      TotalClue::OneDigit(clue.chars().next().unwrap())
+    } else if clue.len() == 2 {
+      let mut chars = clue.chars();
+      TotalClue::TwoDigit {
+        tens: chars.next().unwrap(),
+        ones: chars.next().unwrap(),
+      }
+    } else {
+      unreachable!("Tried to construct clue with wrong number of digits: \"{clue}\"")
+    }
+  }
+}
+
+impl Display for TotalClue {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match self {
+      TotalClue::OneDigit(digit) => write!(f, "{digit}"),
+      TotalClue::TwoDigit { ones, tens } => write!(f, "{tens}{ones}"),
+    }
+  }
+}
+
+#[derive(Clone)]
 pub struct TotalTile {
-  horizontal: Option<String>,
-  vertical: Option<String>,
+  horizontal: Option<TotalClue>,
+  vertical: Option<TotalClue>,
 }
 
 impl TotalTile {
   fn map_horizontal<F, V>(&self, callback: F) -> Option<V>
   where
-    F: FnOnce(String) -> V,
+    F: FnOnce(TotalClue) -> V,
   {
     if let TotalTile {
       horizontal: Some(horizontal),
@@ -31,7 +63,7 @@ impl TotalTile {
 
   fn map_vertical<F, V>(&self, callback: F) -> Option<V>
   where
-    F: FnOnce(String) -> V,
+    F: FnOnce(TotalClue) -> V,
   {
     if let TotalTile {
       horizontal: _,
@@ -145,12 +177,12 @@ impl Kakuro {
               |total_tile, rule| {
                 if let Some(vert) = rule.strip_prefix('v') {
                   TotalTile {
-                    vertical: Some(vert.to_string()),
+                    vertical: Some(TotalClue::new(vert)),
                     ..total_tile
                   }
                 } else if let Some(hori) = rule.strip_prefix('h') {
                   TotalTile {
-                    horizontal: Some(hori.to_string()),
+                    horizontal: Some(TotalClue::new(hori)),
                     ..total_tile
                   }
                 } else {
@@ -159,28 +191,16 @@ impl Kakuro {
               },
             );
             grid.push(Tile::Total(total_tile));
-            /*
-            let sum_rules: Vec<&str> = line.split(',').collect();
-            let mut vert_val: Option<String> = None;
-            let mut hori_val: Option<String> = None;
-            for rule in sum_rules {
-              if let Some(vert) = rule.strip_prefix('v') {
-                vert_val = Some(vert.to_string());
-              } else if let Some(hori) = rule.strip_prefix('h') {
-                hori_val = Some(hori.to_string());
-              }
-            }
-            grid.push(Tile::Total(TotalTile {
-              vertical: vert_val,
-              horizontal: hori_val,
-            }))
-            */
           }
         }
       }
       grids.push(Kakuro { tiles: grid, n });
     }
     Ok(grids)
+  }
+
+  fn get_idx(&self, row: usize, col: usize) -> usize {
+    row * self.n + col
   }
 
   fn take_unknowns(
@@ -192,7 +212,7 @@ impl Kakuro {
     let idx = if vertical { row } else { col };
     let step = if vertical { self.n } else { 1 };
     (1..(self.n - idx)).map_while(move |idx| {
-      let idx = row * self.n + col + idx * step;
+      let idx = self.get_idx(row, col) + idx * step;
       if let Tile::Unknown(unknown) = self.tiles.get(idx).unwrap() {
         Some((idx, unknown.clone()))
       } else {
@@ -203,7 +223,12 @@ impl Kakuro {
 
   pub fn enumerate_lines(
     &self,
-  ) -> impl Iterator<Item = (String, impl Iterator<Item = (usize, UnknownTile)> + '_)> + '_ {
+  ) -> impl Iterator<
+    Item = (
+      (usize, TotalClue),
+      impl Iterator<Item = (usize, UnknownTile)> + '_,
+    ),
+  > + '_ {
     (0..self.n).flat_map(move |row| {
       (0..self.n)
         .filter_map(move |col| {
@@ -215,7 +240,7 @@ impl Kakuro {
               total
                 .map_horizontal(|horizontal_clue| {
                   iter::once(Some((
-                    horizontal_clue.clone(),
+                    (self.get_idx(row, col), horizontal_clue),
                     self.take_unknowns(row, col, false),
                   )))
                 })
@@ -225,7 +250,7 @@ impl Kakuro {
                   total
                     .map_vertical(|vertical_clue| {
                       iter::once(Some((
-                        vertical_clue.clone(),
+                        (self.get_idx(row, col), vertical_clue),
                         self.take_unknowns(row, col, true),
                       )))
                     })
@@ -236,6 +261,19 @@ impl Kakuro {
         })
         .flatten()
     })
+  }
+
+  fn solve(&self) {
+    enum Item {
+      Sum { idx: u32 },
+      Tile { idx: u32 },
+      Letter { letter: char },
+    }
+    let mut items = HashSet::new();
+
+    for ((clue_idx, clue), tiles) in self.enumerate_lines() {
+      for (tile_idx, tile) in tiles {}
+    }
   }
 }
 

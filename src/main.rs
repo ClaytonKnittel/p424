@@ -1,15 +1,10 @@
 use std::io;
 
-use dlx::{Dlx, HeaderType};
 use kakuro::Kakuro;
-
-use crate::{
-  dlx::{ColorItem, Constraint},
-  sudoku::Sudoku,
-};
 
 mod dlx;
 mod kakuro;
+mod linear_solver;
 mod parenthesis_split;
 mod solver;
 mod sudoku;
@@ -22,7 +17,7 @@ fn main() -> io::Result<()> {
     for line in kakuro.enumerate_lines() {
       println!(
         "Line: {}: {}",
-        line.0,
+        line.0 .1,
         line
           .1
           .map(|(idx, tile)| format!("({} {})", tile, idx))
@@ -31,62 +26,6 @@ fn main() -> io::Result<()> {
       );
     }
   }
-
-  // let mut dlx = Dlx::new(
-  //   vec![
-  //     (1, HeaderType::Primary),
-  //     (3, HeaderType::Secondary),
-  //     (2, HeaderType::Primary),
-  //   ],
-  //   vec![
-  //     (0, vec![1.into(), 2.into()]),
-  //     (1, vec![Constraint::Secondary(ColorItem::new(3, 1))]),
-  //     (2, vec![1.into()]),
-  //   ],
-  // );
-
-  let mut dlx = Dlx::new(
-    vec![
-      ('p', HeaderType::Primary),
-      ('q', HeaderType::Primary),
-      ('a', HeaderType::Secondary),
-    ],
-    vec![
-      (
-        0,
-        vec![Constraint::Primary('p'), ColorItem::new('a', 1).into()],
-      ),
-      (1, vec!['p'.into(), ColorItem::new('a', 2).into()]),
-      (2, vec!['q'.into(), ColorItem::new('a', 3).into()]),
-      (3, vec!['q'.into(), ColorItem::new('a', 1).into()]),
-    ],
-  );
-
-  if let Some(solution) = dlx.find_solution() {
-    print!("Solution:");
-    for c in solution {
-      print!(" {}", c);
-    }
-    println!();
-  } else {
-    println!("No solution found");
-  }
-
-  let mut sudoku = Sudoku::new([
-    [8, 5, 0, 0, 0, 2, 4, 0, 0],
-    [7, 2, 0, 0, 0, 0, 0, 0, 9],
-    [0, 0, 4, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 1, 0, 7, 0, 0, 2],
-    [3, 0, 5, 0, 0, 0, 9, 0, 0],
-    [0, 4, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 8, 0, 0, 7, 0],
-    [0, 1, 7, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 3, 6, 0, 4, 0],
-  ]);
-
-  println!("{sudoku}");
-  println!("Solved: {}", sudoku.solve());
-  println!("{sudoku}");
 
   Ok(())
 }
