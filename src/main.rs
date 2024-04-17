@@ -62,8 +62,6 @@ fn main() -> io::Result<()> {
     ],
   );
 
-  println!("{:?}", dlx);
-
   if let Some(solution) = dlx.find_solution() {
     print!("Solution:");
     for c in solution {

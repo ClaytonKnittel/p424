@@ -116,8 +116,6 @@ impl Sudoku {
         .map(|(choice, subset)| (choice, subset.map(Constraint::Primary))),
     );
 
-    println!("{:?}", dlx);
-
     if let Some(choices) = dlx.find_solution() {
       for choice in choices {
         self.grid[choice.row as usize][choice.col as usize] = choice.digit;
