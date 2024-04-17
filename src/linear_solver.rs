@@ -79,6 +79,8 @@ where
 mod test {
   use std::iter;
 
+  use itertools::Itertools;
+
   use super::LinearSolver;
 
   #[test]
@@ -93,7 +95,34 @@ mod test {
 
     assert!(slv
       .find_all_solutions()
-      .map(|soln| soln.collect::<Vec<_>>())
+      .map(|soln| soln.collect_vec())
       .eq(iter::once(vec![(Vars::X, 0)])));
+  }
+
+  #[test]
+  fn test_two_vars() {
+    #[derive(Clone, PartialEq, Eq, Debug, PartialOrd, Ord)]
+    enum Vars {
+      X,
+      Y,
+    }
+
+    let mut slv = LinearSolver::new();
+    slv.add(Vars::X, -2);
+    slv.add(Vars::Y, 3);
+
+    assert!(slv
+      .find_all_solutions()
+      .map(|soln| soln.collect_vec())
+      .sorted()
+      .eq(
+        [
+          vec![(Vars::X, 0), (Vars::Y, 0)],
+          vec![(Vars::X, 3), (Vars::Y, 2)],
+          vec![(Vars::X, 6), (Vars::Y, 4)],
+          vec![(Vars::X, 9), (Vars::Y, 6)]
+        ]
+        .into_iter()
+      ));
   }
 }
