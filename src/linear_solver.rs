@@ -2,6 +2,7 @@ use std::iter::repeat;
 
 use itertools::{FoldWhile, Itertools};
 
+#[derive(Clone)]
 struct Term<V> {
   var: V,
   factor: i32,
@@ -38,9 +39,7 @@ where
     self.find(var).factor += factor;
   }
 
-  pub fn find_all_solutions(
-    &self,
-  ) -> impl Iterator<Item = impl Iterator<Item = (V, u32)> + '_> + '_ {
+  pub fn find_all_solutions_owned(self) -> impl Iterator<Item = impl Iterator<Item = (V, u32)>> {
     repeat(())
       .take(10usize.pow(self.vars.len() as u32))
       .scan(
@@ -61,17 +60,11 @@ where
               }
             })
             .is_done();
-          Some((digs.clone(), *total))
+          Some((self.vars.clone().into_iter().zip(digs.clone()), *total))
         },
       )
       .filter(|&(_, total)| total == 0)
-      .map(|(digs, _)| {
-        self
-          .vars
-          .iter()
-          .zip(digs)
-          .map(|(Term { var, .. }, digit)| (var.clone(), digit))
-      })
+      .map(|(digs, _)| digs.map(|(Term { var, .. }, digit)| (var.clone(), digit)))
   }
 }
 
@@ -94,7 +87,7 @@ mod test {
     slv.add(Vars::X, 1);
 
     assert!(slv
-      .find_all_solutions()
+      .find_all_solutions_owned()
       .map(|soln| soln.collect_vec())
       .eq(iter::once(vec![(Vars::X, 0)])));
   }
@@ -112,7 +105,7 @@ mod test {
     slv.add(Vars::Y, 3);
 
     assert!(slv
-      .find_all_solutions()
+      .find_all_solutions_owned()
       .map(|soln| soln.collect_vec())
       .sorted()
       .eq(

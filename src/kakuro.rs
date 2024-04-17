@@ -1,6 +1,5 @@
 use std::{
   collections::HashSet,
-  convert::identity,
   fmt::{self, Display},
   fs::File,
   io::{self, BufRead, BufReader},
@@ -11,10 +10,9 @@ use std::{
 use itertools::Itertools;
 
 use crate::{
-  dlx::{ColorItem, Constraint, Dlx},
+  dlx::{ColorItem, Constraint, Dlx, HeaderType},
   linear_solver::LinearSolver,
   parenthesis_split::ParenthesesAwareSplit,
-  solver,
 };
 
 #[derive(Clone)]
@@ -289,7 +287,59 @@ impl Kakuro {
     })
   }
 
+  fn all_items(&self) -> impl Iterator<Item = (DlxItem, HeaderType)> + '_ {
+    self
+      .tiles
+      .iter()
+      .enumerate()
+      .flat_map(|(idx, tile)| {
+        let idx = idx as u32;
+        match tile {
+          Tile::Total(TotalTile {
+            horizontal,
+            vertical,
+          }) => [
+            horizontal.as_ref().map(|_| {
+              (
+                DlxItem::Sum {
+                  idx,
+                  vertical: false,
+                },
+                HeaderType::Primary,
+              )
+            }),
+            vertical.as_ref().map(|_| {
+              (
+                DlxItem::Sum {
+                  idx,
+                  vertical: true,
+                },
+                HeaderType::Primary,
+              )
+            }),
+          ],
+          Tile::Empty => [Some((DlxItem::Tile { idx }, HeaderType::Secondary)), None],
+          _ => [None, None],
+        }
+        .into_iter()
+        .flatten()
+      })
+      .chain(('A'..='H').enumerate().flat_map(|(value, letter)| {
+        [
+          (DlxItem::Letter { letter }, HeaderType::Secondary),
+          (
+            DlxItem::LetterValue {
+              value: value as u32,
+            },
+            HeaderType::Secondary,
+          ),
+        ]
+        .into_iter()
+      }))
+  }
+
   fn construct_dlx(
+    clue_item: DlxItem,
     items: Vec<(DlxItem, u32)>,
   ) -> Option<impl Iterator<Item = Constraint<DlxItem>>> {
     let values =
@@ -316,15 +366,18 @@ impl Kakuro {
       };
 
     Some(
-      items
-        .into_iter()
+      iter::once(clue_item.into())
+        .chain(
+          items
+            .into_iter()
+            .map(|(item, color)| ColorItem::new(item, color).into()),
+        )
         .chain(
           values
             .into_iter()
             .enumerate()
-            .filter_map(|(idx, item)| item.map(|item| (item, idx as u32))),
-        )
-        .map(|(item, color)| ColorItem::new(item, color).into()),
+            .filter_map(|(idx, item)| item.map(|item| ColorItem::new(item, idx as u32).into())),
+        ),
     )
   }
 
@@ -341,9 +394,9 @@ impl Kakuro {
       );
     }
 
-    // let mut items = HashSet::new();
+    let items = self.all_items();
 
-    for ((item, clue), items) in self.enumerate_lines() {
+    let choices = self.enumerate_lines().flat_map(|((item, clue), items)| {
       let mut solver = LinearSolver::new();
       match clue {
         TotalClue::OneDigit(letter) => {
@@ -358,11 +411,15 @@ impl Kakuro {
         solver.add(item, 1);
       }
 
-      println!("Solutions:");
-      for soln in solver.find_all_solutions().map(Itertools::collect_vec) {
-        println!("{:?}", soln);
-      }
-    }
+      solver
+        .find_all_solutions_owned()
+        .map(Itertools::collect_vec)
+        .flat_map(move |solution| {
+          Self::construct_dlx(item.clone(), solution).map(|subset| (0, subset))
+        })
+    });
+
+    let mut dlx = Dlx::new(items, choices);
   }
 }
 
