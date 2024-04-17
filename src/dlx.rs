@@ -54,6 +54,7 @@ struct ListNodeI<I> {
 
 type HeaderListNode = ListNodeI<u32>;
 
+#[derive(Debug)]
 pub enum HeaderType {
   Primary,
   Secondary,

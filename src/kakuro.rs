@@ -318,13 +318,15 @@ impl Kakuro {
               )
             }),
           ],
-          Tile::Empty => [Some((DlxItem::Tile { idx }, HeaderType::Secondary)), None],
+          Tile::Unknown(UnknownTile::Blank) => {
+            [Some((DlxItem::Tile { idx }, HeaderType::Secondary)), None]
+          }
           _ => [None, None],
         }
         .into_iter()
         .flatten()
       })
-      .chain(('A'..='H').enumerate().flat_map(|(value, letter)| {
+      .chain(('A'..='J').enumerate().flat_map(|(value, letter)| {
         [
           (DlxItem::Letter { letter }, HeaderType::Secondary),
           (
@@ -414,12 +416,12 @@ impl Kakuro {
       solver
         .find_all_solutions_owned()
         .map(Itertools::collect_vec)
-        .flat_map(move |solution| {
-          Self::construct_dlx(item.clone(), solution).map(|subset| (0, subset))
-        })
+        .flat_map(move |solution| Self::construct_dlx(item.clone(), solution))
     });
+    let choices = (0u64..).zip(choices);
 
     let mut dlx = Dlx::new(items, choices);
+    println!("{:?}", dlx);
   }
 }
 

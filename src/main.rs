@@ -1,6 +1,7 @@
 use std::io;
 
 use kakuro::Kakuro;
+use sudoku::Sudoku;
 
 mod dlx;
 mod kakuro;
@@ -16,7 +17,12 @@ fn main() -> io::Result<()> {
     println!("{}", kakuro);
 
     kakuro.solve();
-    break;
+  }
+
+  if false {
+    let mut s = Sudoku::new([[0; 9]; 9]);
+    s.solve();
+    println!("{s}");
   }
 
   Ok(())
