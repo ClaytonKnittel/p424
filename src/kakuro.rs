@@ -350,11 +350,11 @@ impl Kakuro {
         .try_fold([(); 10].map(|_| None), |mut values_array, (item, value)| {
           let value = *value;
           match item {
-            DlxItem::Letter { .. } => {
+            DlxItem::Letter { letter } => {
               if values_array[value as usize].is_some() {
                 ControlFlow::Break(())
               } else {
-                values_array[value as usize] = Some(DlxItem::LetterValue { value });
+                values_array[value as usize] = Some(*letter);
                 ControlFlow::Continue(values_array)
               }
             }
@@ -374,12 +374,15 @@ impl Kakuro {
             .into_iter()
             .map(|(item, color)| ColorItem::new(item, color).into()),
         )
-        .chain(
-          values
-            .into_iter()
-            .enumerate()
-            .filter_map(|(idx, item)| item.map(|item| ColorItem::new(item, idx as u32).into())),
-        ),
+        .chain(values.into_iter().enumerate().filter_map(|(idx, letter)| {
+          letter.map(|letter| {
+            ColorItem::new(
+              DlxItem::LetterValue { value: idx as u32 },
+              letter as u32 - 'A' as u32,
+            )
+            .into()
+          })
+        })),
     )
   }
 
@@ -421,8 +424,13 @@ impl Kakuro {
     let choices = (0u64..).zip(choices);
 
     let mut dlx = Dlx::new(items, choices);
-    //   println!("{:?}", dlx);
 
+    println!("{dlx:?}");
+    if let Some(soln) = dlx.find_solution_names() {
+      for x in soln {
+        println!("Soln: {x}");
+      }
+    }
     if let Some(soln) = dlx.find_solution_colors() {
       for (item, color) in soln {
         println!("Assign: {item:?} {color}");

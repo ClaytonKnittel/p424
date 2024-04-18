@@ -154,6 +154,16 @@ impl<I> Node<I> {
     }
   }
 
+  fn top(&self) -> u32 {
+    match self {
+      Node::Normal {
+        node_type: NodeType::Body { top, .. },
+        ..
+      } => *top,
+      _ => unreachable!("Unexpected top() called on non-body node"),
+    }
+  }
+
   fn len(&self) -> usize {
     match self {
       Node::Normal {
@@ -484,12 +494,6 @@ where
     unsafe { self.body.get_unchecked_mut(idx) }
   }
 
-  fn boundary_for_set(&self, idx: usize) -> usize {
-    ((idx + 1)..)
-      .find(|&q| matches!(self.body_node(q), Node::Boundary { .. }))
-      .unwrap()
-  }
-
   fn item_name(&self, idx: usize) -> I {
     debug_assert!(matches!(
       self.body_node(idx),
@@ -552,16 +556,16 @@ where
         }
         Node::Normal {
           item_node,
-          node_type: NodeType::Body { top, .. },
+          node_type: NodeType::Body { top, color },
         } => {
           let top = *top as usize;
 
-          // if color.is_some() {
-          let prev_idx = item_node.prev;
-          let next_idx = item_node.next;
-          self.node_mut(prev_idx).set_next(next_idx);
-          self.node_mut(next_idx).set_prev(prev_idx);
-          // }
+          if self.header(top).is_primary() || color.is_some() {
+            let prev_idx = item_node.prev;
+            let next_idx = item_node.next;
+            self.node_mut(prev_idx).set_next(next_idx);
+            self.node_mut(next_idx).set_prev(prev_idx);
+          }
           *self.body_header_mut(top).len_mut() -= 1;
           q += 1;
         }
@@ -584,16 +588,16 @@ where
         }
         Node::Normal {
           item_node,
-          node_type: NodeType::Body { top, .. },
+          node_type: NodeType::Body { top, color },
         } => {
           let top = *top as usize;
 
-          // if color.is_some() {
-          let prev_idx = item_node.prev;
-          let next_idx = item_node.next;
-          self.node_mut(prev_idx).set_next(q);
-          self.node_mut(next_idx).set_prev(q);
-          // }
+          if self.header(top).is_primary() || color.is_some() {
+            let prev_idx = item_node.prev;
+            let next_idx = item_node.next;
+            self.node_mut(prev_idx).set_next(q);
+            self.node_mut(next_idx).set_prev(q);
+          }
           *self.body_header_mut(top).len_mut() += 1;
           q -= 1;
         }
@@ -610,12 +614,7 @@ where
   /// from the items list.
   fn cover(&mut self, idx: usize) {
     // println!("Covering {:?}", self.header(idx).item.as_ref().unwrap());
-    debug_assert!(
-      (1..=self.num_primary_items).contains(&idx),
-      "{} vs 1..={}",
-      idx,
-      self.num_primary_items
-    );
+    debug_assert!((1..=self.num_primary_items).contains(&idx));
     let mut p = self.body_header(idx).next();
     while p != idx {
       self.hide(p);
@@ -667,6 +666,7 @@ where
     let mut p = self.body_header(top).next();
     while p != top {
       let p_color = self.body_node_mut(p).color_mut();
+      // println!("Looking at {p} ({p_color:?})");
       if *p_color == Some(color) {
         *p_color = None;
       } else {
@@ -810,7 +810,7 @@ where
   fn items_for_node(&self, idx: usize) -> impl Iterator<Item = Constraint<I>> + '_ {
     self
       .iterate_items(idx)
-      .map(|item_idx| match self.body_node(item_idx).color() {
+      .map(move |item_idx| match self.body_node(item_idx).color() {
         Some(color) => ColorItem::new(self.item_name(item_idx), color).into(),
         None => self.item_name(item_idx).into(),
       })
@@ -832,7 +832,13 @@ where
           self.cover(item);
         }
         None => {
-          println!("Done in {iters} iters");
+          // println!("Done in {iters} iters");
+          // Undo all changes we've made to the data structure.
+          solution.iter().rev().for_each(|&p| {
+            self.uncover_remaining_choices(p);
+            let top = self.body_node(p).top() as usize;
+            self.uncover(top);
+          });
           return Some(solution);
         }
       }
@@ -900,11 +906,10 @@ where
         .iter()
         .fold(HashMap::new(), |secondary_assignments, &p| {
           self
-            .iterate_items(p)
-            .fold(secondary_assignments, |mut secondary_assignments, q| {
-              let node = self.body_node(q);
-              if let Some(color) = node.color() {
-                if let Some(prev_color) = secondary_assignments.insert(self.item_name(q), color) {
+            .items_for_node(p)
+            .fold(secondary_assignments, |mut secondary_assignments, c| {
+              if let Constraint::Secondary(ColorItem { item, color }) = c {
+                if let Some(prev_color) = secondary_assignments.insert(item, color) {
                   debug_assert_eq!(color, prev_color);
                 }
               }
