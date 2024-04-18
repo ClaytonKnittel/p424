@@ -816,11 +816,12 @@ where
       })
   }
 
-  fn find_solution_idx(&mut self) -> Option<Vec<usize>>
+  fn find_all_solutions_idx(&mut self) -> Vec<Vec<usize>>
   where
     I: Debug,
     N: Debug,
   {
+    let mut solutions = Vec::new();
     let mut solution = Vec::new();
     let mut iters = 0;
 
@@ -832,14 +833,13 @@ where
           self.cover(item);
         }
         None => {
-          println!("Done in {iters} iters");
           // Undo all changes we've made to the data structure.
-          solution.iter().rev().for_each(|&p| {
-            self.uncover_remaining_choices(p);
-            let top = self.body_node(p).top() as usize;
-            self.uncover(top);
-          });
-          return Some(solution);
+          // solution.iter().rev().for_each(|&p| {
+          //   self.uncover_remaining_choices(p);
+          //   let top = self.body_node(p).top() as usize;
+          //   self.uncover(top);
+          // });
+          solutions.push(solution.clone());
         }
       }
       // println!("d{} for {}", solution.len(), solution.last().unwrap());
@@ -878,12 +878,12 @@ where
           Node::Boundary { .. } => unreachable!("Unexpected boundary node found in queue: {p}"),
         }
       }
+      // println!("Done in {iters} iters");
 
       break;
     }
 
-    // No solution could be found.
-    None
+    solutions
   }
 
   pub fn find_solution_names(&mut self) -> Option<impl Iterator<Item = N> + '_>
@@ -891,9 +891,34 @@ where
     I: Debug,
     N: Debug,
   {
-    self
-      .find_solution_idx()
+    let mut solutions = self.find_all_solutions_idx();
+    debug_assert_eq!(solutions.len(), 1);
+    solutions
+      .pop()
       .map(|solution| solution.into_iter().map(|p| self.set_name_for_node(p)))
+  }
+
+  pub fn find_all_solution_colors(&mut self) -> impl Iterator<Item = HashMap<I, u32>> + '_
+  where
+    I: Debug,
+    N: Debug,
+  {
+    self.find_all_solutions_idx().into_iter().map(|solution| {
+      solution
+        .iter()
+        .fold(HashMap::new(), |secondary_assignments, &p| {
+          self
+            .items_for_node(p)
+            .fold(secondary_assignments, |mut secondary_assignments, c| {
+              if let Constraint::Secondary(ColorItem { item, color }) = c {
+                if let Some(prev_color) = secondary_assignments.insert(item, color) {
+                  debug_assert_eq!(color, prev_color);
+                }
+              }
+              secondary_assignments
+            })
+        })
+    })
   }
 
   pub fn find_solution_colors(&mut self) -> Option<HashMap<I, u32>>
@@ -901,7 +926,9 @@ where
     I: Debug,
     N: Debug,
   {
-    self.find_solution_idx().map(|solution| {
+    let mut solutions = self.find_all_solutions_idx();
+    debug_assert_eq!(solutions.len(), 1);
+    solutions.pop().map(|solution| {
       solution
         .iter()
         .fold(HashMap::new(), |secondary_assignments, &p| {

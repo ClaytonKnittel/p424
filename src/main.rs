@@ -20,12 +20,11 @@ fn main() -> io::Result<()> {
       println!("{}", kakuro);
 
       let letters = kakuro.solve();
-      if let Some(letters) = letters {
+      println!("Letters:");
+      for letters in letters.iter() {
         println!("{letters}");
-        letters.int_value()
-      } else {
-        panic!("No solution found!");
       }
+      letters.first().unwrap().int_value()
     })
     .sum();
 

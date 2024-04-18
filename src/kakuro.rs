@@ -1,5 +1,5 @@
 use std::{
-  collections::HashSet,
+  collections::HashMap,
   fmt::{self, Display},
   fs::File,
   io::{self, BufRead, BufReader},
@@ -148,6 +148,12 @@ enum DlxItem {
   Tile { idx: u32 },
   Letter { letter: char },
   LetterValue { value: u32 },
+}
+
+impl DlxItem {
+  fn is_tile(&self) -> bool {
+    matches!(self, DlxItem::Tile { .. })
+  }
 }
 
 pub struct LetterAssignment {
@@ -448,7 +454,50 @@ impl Kakuro {
     )
   }
 
-  pub fn solve(&self) -> Option<LetterAssignment> {
+  fn print_test(&self, soln: &HashMap<DlxItem, u32>) {
+    self.tiles.iter().enumerate().for_each(|(idx, tile)| {
+      let out = match tile {
+        Tile::Unknown(UnknownTile::Blank) => {
+          format!("{}", soln.get(&DlxItem::Tile { idx: idx as u32 }).unwrap())
+        }
+        Tile::Unknown(UnknownTile::Prefilled { hint }) => {
+          format!("{}", soln.get(&DlxItem::Letter { letter: *hint }).unwrap())
+        }
+        Tile::Total(TotalTile {
+          horizontal,
+          vertical,
+        }) => format!(
+          "{},{}",
+          match vertical {
+            Some(TotalClue::OneDigit(digit)) => {
+              format!("{}", soln.get(&DlxItem::Letter { letter: *digit }).unwrap())
+            }
+            Some(TotalClue::TwoDigit { ones, tens }) => format!(
+              "{}{}",
+              soln.get(&DlxItem::Letter { letter: *tens }).unwrap(),
+              soln.get(&DlxItem::Letter { letter: *ones }).unwrap()
+            ),
+            None => "".to_string(),
+          },
+          match horizontal {
+            Some(TotalClue::OneDigit(digit)) => {
+              format!("{}", soln.get(&DlxItem::Letter { letter: *digit }).unwrap())
+            }
+            Some(TotalClue::TwoDigit { ones, tens }) => format!(
+              "{}{}",
+              soln.get(&DlxItem::Letter { letter: *tens }).unwrap(),
+              soln.get(&DlxItem::Letter { letter: *ones }).unwrap()
+            ),
+            None => "".to_string(),
+          },
+        ),
+        Tile::Empty => "X".to_owned(),
+      };
+      println!("{:10}", out);
+    });
+  }
+
+  pub fn solve(&self) -> Vec<LetterAssignment> {
     for line in self.enumerate_lines() {
       println!(
         "Line: {}: {}",
@@ -467,38 +516,61 @@ impl Kakuro {
       let mut solver = LinearSolver::new();
       match clue {
         TotalClue::OneDigit(letter) => {
-          solver.add(DlxItem::Letter { letter }, -1);
+          solver.add(DlxItem::Letter { letter }, -1, true);
         }
         TotalClue::TwoDigit { ones, tens } => {
-          solver.add(DlxItem::Letter { letter: ones }, -1);
-          solver.add(DlxItem::Letter { letter: tens }, -10);
+          solver.add(DlxItem::Letter { letter: ones }, -1, true);
+          solver.add(DlxItem::Letter { letter: tens }, -10, true);
         }
       }
-      for item in items {
-        solver.add(item, 1);
-      }
+      let mut must_be_different = Vec::new();
+      items.fold(None, |prev, item| {
+        solver.add(item.clone(), 1, false);
+
+        if let Some(prev) = prev {
+          must_be_different.push((prev, item.clone()));
+        }
+        Some(item)
+      });
 
       solver
         .find_all_solutions_owned()
         .map(Itertools::collect_vec)
+        .filter(move |soln| {
+          must_be_different.iter().all(|(a, b)| {
+            let a = soln
+              .iter()
+              .find_map(|(item, val)| if item == a { Some(val) } else { None })
+              .unwrap();
+            let b = soln
+              .iter()
+              .find_map(|(item, val)| if item == b { Some(val) } else { None })
+              .unwrap();
+            a != b
+          })
+        })
         .flat_map(move |solution| Self::construct_dlx(item.clone(), solution))
     });
     let choices = (0u64..).zip(choices);
 
     let mut dlx = Dlx::new(items, choices);
 
-    dlx.find_solution_colors().map(|soln| {
-      soln
-        .into_iter()
-        .filter_map(|(item, color)| match item {
-          DlxItem::Letter { letter } => Some((letter, color)),
-          _ => None,
-        })
-        .fold(LetterAssignment::new(), |la, (letter, color)| {
-          la.with_value(letter, color)
-        })
-        .with_filled_remaining()
-    })
+    dlx
+      .find_all_solution_colors()
+      .map(|soln| {
+        // self.print_test(&soln);
+        soln
+          .into_iter()
+          .filter_map(|(item, color)| match item {
+            DlxItem::Letter { letter } => Some((letter, color)),
+            _ => None,
+          })
+          .fold(LetterAssignment::new(), |la, (letter, color)| {
+            la.with_value(letter, color)
+          })
+          .with_filled_remaining()
+      })
+      .collect_vec()
   }
 }
 

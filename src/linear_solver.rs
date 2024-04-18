@@ -6,6 +6,7 @@ use itertools::{FoldWhile, Itertools};
 struct Term<V> {
   var: V,
   factor: i32,
+  can_be_zero: bool,
 }
 
 pub struct LinearSolver<V> {
@@ -20,7 +21,7 @@ where
     Self { vars: Vec::new() }
   }
 
-  fn find(&mut self, var: V) -> &mut Term<V> {
+  fn find(&mut self, var: V, can_be_zero: bool) -> &mut Term<V> {
     if let Some(idx) = self
       .vars
       .iter()
@@ -28,20 +29,30 @@ where
       .find(|(_, term)| term.var == var)
       .map(|(idx, _)| idx)
     {
+      self.vars[idx].can_be_zero = self.vars[idx].can_be_zero && can_be_zero;
       &mut self.vars[idx]
     } else {
-      self.vars.push(Term { var, factor: 0 });
+      self.vars.push(Term {
+        var,
+        factor: 0,
+        can_be_zero,
+      });
       self.vars.last_mut().unwrap()
     }
   }
 
-  pub fn add(&mut self, var: V, factor: i32) {
-    self.find(var).factor += factor;
+  pub fn add(&mut self, var: V, factor: i32, can_be_zero: bool) {
+    self.find(var, can_be_zero).factor += factor;
   }
 
   pub fn find_all_solutions_owned(self) -> impl Iterator<Item = impl Iterator<Item = (V, u32)>> {
     repeat(())
-      .take(10usize.pow(self.vars.len() as u32))
+      .take(
+        self
+          .vars
+          .iter()
+          .fold(1, |ways, term| ways * if term.can_be_zero { 10 } else { 9 }),
+      )
       .scan(
         (self.vars.iter().map(|_| 0).collect::<Vec<_>>(), 0),
         move |(digs, total), _| {
@@ -54,8 +65,9 @@ where
                 *total += var.factor;
                 FoldWhile::Done(())
               } else {
-                *digit = 0;
-                *total -= 9 * var.factor;
+                let reset = if var.can_be_zero { 0 } else { 1 };
+                *digit = reset;
+                *total -= (9 - reset as i32) * var.factor;
                 FoldWhile::Continue(())
               }
             })
@@ -84,7 +96,7 @@ mod test {
     }
 
     let mut slv = LinearSolver::new();
-    slv.add(Vars::X, 1);
+    slv.add(Vars::X, 1, true);
 
     assert!(slv
       .find_all_solutions_owned()
@@ -101,8 +113,8 @@ mod test {
     }
 
     let mut slv = LinearSolver::new();
-    slv.add(Vars::X, -2);
-    slv.add(Vars::Y, 3);
+    slv.add(Vars::X, -2, true);
+    slv.add(Vars::Y, 3, false);
 
     assert!(slv
       .find_all_solutions_owned()
@@ -110,7 +122,6 @@ mod test {
       .sorted()
       .eq(
         [
-          vec![(Vars::X, 0), (Vars::Y, 0)],
           vec![(Vars::X, 3), (Vars::Y, 2)],
           vec![(Vars::X, 6), (Vars::Y, 4)],
           vec![(Vars::X, 9), (Vars::Y, 6)]
