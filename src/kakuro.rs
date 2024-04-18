@@ -150,6 +150,68 @@ enum DlxItem {
   LetterValue { value: u32 },
 }
 
+pub struct LetterAssignment {
+  letters: [u32; 10],
+}
+
+impl LetterAssignment {
+  fn new() -> Self {
+    Self { letters: [10; 10] }
+  }
+
+  fn letter_idx(letter: char) -> usize {
+    debug_assert!(('A'..='J').contains(&letter));
+    letter as usize - 'A' as usize
+  }
+
+  pub fn letter_value(&self, letter: char) -> u32 {
+    self.letters[Self::letter_idx(letter)]
+  }
+
+  fn set_value(&mut self, letter: char, value: u32) {
+    debug_assert_eq!(self.letters[Self::letter_idx(letter)], 10);
+    self.letters[Self::letter_idx(letter)] = value;
+  }
+
+  fn with_value(mut self, letter: char, value: u32) -> Self {
+    self.set_value(letter, value);
+    self
+  }
+
+  fn fill_remaining(&mut self) {
+    debug_assert!(self.letters.iter().filter(|&&count| count == 10).count() <= 1);
+    if let Some((idx, _)) = self
+      .letters
+      .iter()
+      .enumerate()
+      .find(|(_, &value)| value == 10)
+    {
+      self.letters[idx] = 55 - self.letters.iter().sum::<u32>();
+    }
+  }
+
+  fn with_filled_remaining(mut self) -> Self {
+    self.fill_remaining();
+    self
+  }
+
+  pub fn int_value(&self) -> u64 {
+    debug_assert!(self.letters.iter().all(|value| (0..=9).contains(value)));
+    self
+      .letters
+      .iter()
+      .fold(0, |acc, &value| 10 * acc + value as u64)
+  }
+}
+
+impl Display for LetterAssignment {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    ('A'..='J').try_fold((), |_, letter| write!(f, "{letter} "))?;
+    writeln!(f)?;
+    ('A'..='J').try_fold((), |_, letter| write!(f, "{} ", self.letter_value(letter)))
+  }
+}
+
 pub struct Kakuro {
   n: usize,
   tiles: Vec<Tile>,
@@ -386,7 +448,7 @@ impl Kakuro {
     )
   }
 
-  pub fn solve(&self) {
+  pub fn solve(&self) -> Option<LetterAssignment> {
     for line in self.enumerate_lines() {
       println!(
         "Line: {}: {}",
@@ -425,18 +487,18 @@ impl Kakuro {
 
     let mut dlx = Dlx::new(items, choices);
 
-    println!("{dlx:?}");
-    if let Some(soln) = dlx.find_solution_names() {
-      for x in soln {
-        println!("Soln: {x}");
-      }
-    }
-    if let Some(soln) = dlx.find_solution_colors() {
-      for (item, color) in soln {
-        println!("Assign: {item:?} {color}");
-      }
-    }
-    //    println!("{:?}", dlx);
+    dlx.find_solution_colors().map(|soln| {
+      soln
+        .into_iter()
+        .filter_map(|(item, color)| match item {
+          DlxItem::Letter { letter } => Some((letter, color)),
+          _ => None,
+        })
+        .fold(LetterAssignment::new(), |la, (letter, color)| {
+          la.with_value(letter, color)
+        })
+        .with_filled_remaining()
+    })
   }
 }
 

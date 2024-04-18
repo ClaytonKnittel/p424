@@ -832,7 +832,7 @@ where
           self.cover(item);
         }
         None => {
-          // println!("Done in {iters} iters");
+          println!("Done in {iters} iters");
           // Undo all changes we've made to the data structure.
           solution.iter().rev().for_each(|&p| {
             self.uncover_remaining_choices(p);
