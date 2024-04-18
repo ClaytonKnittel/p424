@@ -2,8 +2,10 @@ use std::{
   collections::{HashMap, HashSet},
   fmt::{self, Debug, Formatter},
   hash::Hash,
+  iter,
 };
 
+#[derive(Debug)]
 pub struct ColorItem<I> {
   item: I,
   color: u32,
@@ -15,6 +17,7 @@ impl<I> ColorItem<I> {
   }
 }
 
+#[derive(Debug)]
 pub enum Constraint<I> {
   Primary(I),
   Secondary(ColorItem<I>),
@@ -481,6 +484,63 @@ where
     unsafe { self.body.get_unchecked_mut(idx) }
   }
 
+  fn boundary_for_set(&self, idx: usize) -> usize {
+    ((idx + 1)..)
+      .find(|&q| matches!(self.body_node(q), Node::Boundary { .. }))
+      .unwrap()
+  }
+
+  fn item_name(&self, idx: usize) -> I {
+    debug_assert!(matches!(
+      self.body_node(idx),
+      Node::Normal {
+        node_type: NodeType::Body { .. },
+        ..
+      }
+    ));
+    if let Node::Normal {
+      node_type: NodeType::Body { top, .. },
+      ..
+    } = self.body_node(idx)
+    {
+      self.header(*top as usize).item.clone().unwrap()
+    } else {
+      unreachable!()
+    }
+  }
+
+  fn iterate_items(&self, idx: usize) -> impl Iterator<Item = usize> + '_ {
+    debug_assert!(matches!(
+      self.body_node(idx),
+      Node::Normal {
+        node_type: NodeType::Body { .. },
+        ..
+      }
+    ));
+    iter::repeat(())
+      .scan(idx + 1, move |q_ptr, _| {
+        let q = *q_ptr;
+        if q == idx {
+          return None;
+        }
+        match self.body_node(q) {
+          Node::Boundary { first_for_prev, .. } => {
+            *q_ptr = *first_for_prev;
+            Some(None)
+          }
+          Node::Normal {
+            node_type: NodeType::Body { .. },
+            ..
+          } => {
+            *q_ptr += 1;
+            Some(Some(q))
+          }
+          _ => None,
+        }
+      })
+      .flatten()
+  }
+
   /// Remove the subset containing the node at `idx` from the grid.
   fn hide(&mut self, idx: usize) {
     // println!("Hiding {idx}");
@@ -619,7 +679,6 @@ where
   /// Reverts `purify(idx)`, assuming the state of Dlx was exactly as it was
   /// when `purify(idx)` was called.
   fn unpurify(&mut self, idx: usize) {
-    debug_assert!(((self.num_primary_items + 1)..self.headers.len()).contains(&idx));
     let (color, top) = match self.body_node(idx) {
       Node::Normal {
         node_type: NodeType::Body {
@@ -748,7 +807,16 @@ where
       .unwrap()
   }
 
-  pub fn find_solution(&mut self) -> Option<impl Iterator<Item = N> + '_>
+  fn items_for_node(&self, idx: usize) -> impl Iterator<Item = Constraint<I>> + '_ {
+    self
+      .iterate_items(idx)
+      .map(|item_idx| match self.body_node(item_idx).color() {
+        Some(color) => ColorItem::new(self.item_name(item_idx), color).into(),
+        None => self.item_name(item_idx).into(),
+      })
+  }
+
+  fn find_solution_idx(&mut self) -> Option<Vec<usize>>
   where
     I: Debug,
     N: Debug,
@@ -765,7 +833,7 @@ where
         }
         None => {
           println!("Done in {iters} iters");
-          return Some(solution.into_iter().map(|p| self.set_name_for_node(p)));
+          return Some(solution);
         }
       }
       // println!("d{} for {}", solution.len(), solution.last().unwrap());
@@ -811,6 +879,40 @@ where
     // No solution could be found.
     None
   }
+
+  pub fn find_solution_names(&mut self) -> Option<impl Iterator<Item = N> + '_>
+  where
+    I: Debug,
+    N: Debug,
+  {
+    self
+      .find_solution_idx()
+      .map(|solution| solution.into_iter().map(|p| self.set_name_for_node(p)))
+  }
+
+  pub fn find_solution_colors(&mut self) -> Option<HashMap<I, u32>>
+  where
+    I: Debug,
+    N: Debug,
+  {
+    self.find_solution_idx().map(|solution| {
+      solution
+        .iter()
+        .fold(HashMap::new(), |secondary_assignments, &p| {
+          self
+            .iterate_items(p)
+            .fold(secondary_assignments, |mut secondary_assignments, q| {
+              let node = self.body_node(q);
+              if let Some(color) = node.color() {
+                if let Some(prev_color) = secondary_assignments.insert(self.item_name(q), color) {
+                  debug_assert_eq!(color, prev_color);
+                }
+              }
+              secondary_assignments
+            })
+        })
+    })
+  }
 }
 
 impl<I, N> Debug for Dlx<I, N>
@@ -842,7 +944,7 @@ mod test {
     let mut dlx: Dlx<u32, u32> = Dlx::new::<_, _, Vec<_>, u32>(vec![], vec![]);
 
     assert!(dlx
-      .find_solution()
+      .find_solution_names()
       .is_some_and(|solution| solution.eq(vec![].into_iter())));
   }
 
@@ -851,7 +953,7 @@ mod test {
     let mut dlx = Dlx::new(vec![(1, HeaderType::Primary)], vec![(0, vec![1])]);
 
     assert!(dlx
-      .find_solution()
+      .find_solution_names()
       .is_some_and(|solution| solution.eq(vec![0].into_iter())));
   }
 
@@ -872,7 +974,7 @@ mod test {
     );
 
     assert!(dlx
-      .find_solution()
+      .find_solution_names()
       .is_some_and(|solution| { solution.sorted().eq(vec![1, 3].into_iter()) }));
   }
 
@@ -896,7 +998,7 @@ mod test {
     );
 
     assert!(dlx
-      .find_solution()
+      .find_solution_names()
       .is_some_and(|solution| { solution.sorted().eq(vec![0, 3].into_iter()) }));
   }
 }

@@ -421,7 +421,14 @@ impl Kakuro {
     let choices = (0u64..).zip(choices);
 
     let mut dlx = Dlx::new(items, choices);
-    println!("{:?}", dlx);
+    //   println!("{:?}", dlx);
+
+    if let Some(soln) = dlx.find_solution_colors() {
+      for (item, color) in soln {
+        println!("Assign: {item:?} {color}");
+      }
+    }
+    //    println!("{:?}", dlx);
   }
 }
 
