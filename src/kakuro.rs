@@ -43,7 +43,7 @@ impl TotalClue {
     }
   }
 
-  pub fn all_permutations_for_range((min, max): (u32, u32), num_tiles: u32) {
+  pub fn all_combinations_for_range((min, max): (u32, u32), num_tiles: u32) {
     debug_assert!((1..=9).contains(&num_tiles));
     let mut choices = Vec::with_capacity(num_tiles as usize);
 
@@ -59,7 +59,8 @@ impl TotalClue {
     {
       let max_extra_from_remainder =
         9 * (num_tiles - 1) - (num_tiles - 1) * (num_tiles.wrapping_sub(2)) / 2;
-      let extra = (air as u32).saturating_sub(max_extra_from_remainder);
+      let extra = (air.max(0) as u32).saturating_sub(max_extra_from_remainder);
+
       slack -= (extra * num_tiles) as i32;
       air -= (extra * num_tiles) as i32;
       choices.push(1 + extra);
@@ -69,15 +70,35 @@ impl TotalClue {
     while let Some(top) = choices.pop() {
       let choices_len = choices.len() as u32;
       let remaining = num_tiles - choices_len;
+      debug_assert_eq!(
+        max as i32
+          - (choices.iter().sum::<u32>() + top * remaining + remaining * (remaining - 1) / 2)
+            as i32,
+        slack
+      );
+      debug_assert_eq!(
+        min as i32
+          - (choices.iter().sum::<u32>() + top * remaining + remaining * (remaining - 1) / 2)
+            as i32,
+        air
+      );
+
       println!("{choices:?}, {top}: remaining {remaining}");
       println!("slack: {slack}, air: {air}");
 
       if slack < 0 {
         // Numbers got too big, time to abort.
-        let prev = *choices.last().unwrap_or(&0);
-        let extra = (top - prev - 1) * remaining;
-        slack += extra as i32;
-        air += extra as i32;
+        if let Some(choice) = choices.last_mut() {
+          let prev_choice = *choice;
+          *choice = prev_choice + 1;
+
+          let diff = (remaining * (top - prev_choice - 1)) as i32 - (remaining as i32 + 1);
+          slack += diff;
+          air += diff;
+        }
+        // let extra = (top - prev - 1) * remaining;
+        // slack += extra as i32;
+        // air += extra as i32;
       } else if remaining == 1 {
         debug_assert!(air <= 0);
         // yield
@@ -101,10 +122,10 @@ impl TotalClue {
     }
   }
 
-  fn all_permutations(&self, num_tiles: u32) {
+  fn all_combinations(&self, num_tiles: u32) {
     // -> impl Iterator<Item = (TotalClue, impl Iterator<Item = u32>)> + '_ {
     let (min, max) = self.sum_range();
-    Self::all_permutations_for_range((min, max), num_tiles);
+    Self::all_combinations_for_range((min, max), num_tiles);
     todo!();
   }
 }
@@ -655,5 +676,15 @@ impl fmt::Display for Kakuro {
       }
       Ok(())
     })
+  }
+}
+
+#[cfg(test)]
+mod test {
+  use super::TotalClue;
+
+  #[test]
+  fn test_combinations_one() {
+    TotalClue::all_combinations_for_range((2, 5), 1);
   }
 }
