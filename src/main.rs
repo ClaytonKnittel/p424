@@ -11,8 +11,8 @@ mod solver;
 mod sudoku;
 
 fn main() -> io::Result<()> {
-  let kakuros = Kakuro::from_file("p424_kakuro200.txt")?;
-  // let kakuros = Kakuro::from_file("kakuro_test.txt")?;
+  // let kakuros = Kakuro::from_file("p424_kakuro200.txt")?;
+  let kakuros = Kakuro::from_file("kakuro_test.txt")?;
   let sums: u64 = kakuros
     .iter()
     .take(2)

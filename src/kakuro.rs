@@ -11,7 +11,6 @@ use itertools::Itertools;
 
 use crate::{
   dlx::{ColorItem, Constraint, Dlx, HeaderType},
-  linear_solver::LinearSolver,
   parenthesis_split::ParenthesesAwareSplit,
 };
 
@@ -46,7 +45,7 @@ impl TotalClue {
   pub fn all_combinations_for_range(
     (min, max): (u32, u32),
     num_tiles: u32,
-  ) -> impl Iterator<Item = Vec<u32>> {
+  ) -> impl Iterator<Item = (u32, Vec<u32>)> {
     debug_assert!((1..=9).contains(&num_tiles));
     let mut choices = Vec::with_capacity(num_tiles as usize);
 
@@ -70,11 +69,8 @@ impl TotalClue {
     }
 
     iter::once(
-      if choices.len() == num_tiles as usize
-        && choices.last().is_some_and(|&choice| choice < 10)
-        && (air..=slack).contains(&0)
-      {
-        Some(choices.clone())
+      if choices.len() == num_tiles as usize && (air..=slack).contains(&0) {
+        Some((*choices.first().unwrap(), choices.clone()))
       } else {
         None
       },
@@ -130,7 +126,7 @@ impl TotalClue {
             && choices.last().is_some_and(|&choice| choice < 10)
             && (*air..=*slack).contains(&0)
           {
-            Some(choices.clone())
+            Some(((min as i32 - *air) as u32, choices.clone()))
           } else {
             None
           }
@@ -140,11 +136,34 @@ impl TotalClue {
     .flatten()
   }
 
-  fn all_combinations(&self, num_tiles: u32) {
-    // -> impl Iterator<Item = (TotalClue, impl Iterator<Item = u32>)> + '_ {
+  fn all_combinations(
+    &self,
+    num_tiles: u32,
+  ) -> impl Iterator<Item = (Vec<(DlxItem, u32)>, Vec<u32>)> {
     let (min, max) = self.sum_range();
-    Self::all_combinations_for_range((min, max), num_tiles);
-    todo!();
+    let self_copy = self.clone();
+    Self::all_combinations_for_range((min, max), num_tiles).filter_map(
+      move |(total, combination)| match self_copy {
+        TotalClue::OneDigit(letter) => {
+          Some((vec![(DlxItem::Letter { letter }, total)], combination))
+        }
+        TotalClue::TwoDigit { ones, tens } => {
+          if (ones == tens) == (total % 11 == 0) {
+            let ones_value = total % 10;
+            let tens_value = total / 10;
+            Some((
+              vec![
+                (DlxItem::Letter { letter: ones }, ones_value),
+                (DlxItem::Letter { letter: tens }, tens_value),
+              ],
+              combination,
+            ))
+          } else {
+            None
+          }
+        }
+      },
+    )
   }
 }
 
@@ -519,40 +538,59 @@ impl Kakuro {
       }))
   }
 
+  /// Constructs Dlx constraints from a list of assignments to letters or
+  /// tiles. Letter assignments may be repeated, and they will be deduplicated.
+  /// If any color assignments conflict among letters (i.e. A=1 and A=2, or A=1
+  /// and B=1), then None is returned.
   fn construct_dlx(
     clue_item: DlxItem,
     items: Vec<(DlxItem, u32)>,
   ) -> Option<impl Iterator<Item = Constraint<DlxItem>>> {
-    let values =
-      match items
-        .iter()
-        .try_fold([(); 10].map(|_| None), |mut values_array, (item, value)| {
-          let value = *value;
-          match item {
-            DlxItem::Letter { letter } => {
-              if values_array[value as usize].is_some() {
-                ControlFlow::Break(())
-              } else {
-                values_array[value as usize] = Some(*letter);
-                ControlFlow::Continue(values_array)
-              }
+    let (letters, values) = match items.iter().try_fold(
+      ([(); 10].map(|_| None), [(); 10].map(|_| None)),
+      |(mut letters_array, mut values_array), (item, value)| {
+        let value = *value;
+        match item {
+          DlxItem::Letter { letter } => {
+            if letters_array[value as usize].is_some_and(|prev_value| prev_value != value)
+              || values_array[value as usize].is_some()
+            {
+              ControlFlow::Break(())
+            } else {
+              letters_array[*letter as usize - 'A' as usize] = Some(value);
+              values_array[value as usize] = Some(*letter);
+              ControlFlow::Continue((letters_array, values_array))
             }
-            _ => ControlFlow::Continue(values_array),
           }
-        }) {
-        ControlFlow::Break(_) => {
-          return None;
+          _ => ControlFlow::Continue((letters_array, values_array)),
         }
-        ControlFlow::Continue(values_array) => values_array,
-      };
+      },
+    ) {
+      ControlFlow::Break(_) => {
+        return None;
+      }
+      ControlFlow::Continue(arrays) => arrays,
+    };
 
     Some(
       iter::once(clue_item.into())
         .chain(
           items
             .into_iter()
+            .filter(|(item, _)| matches!(item, DlxItem::Tile { .. }))
             .map(|(item, color)| ColorItem::new(item, color).into()),
         )
+        .chain(letters.into_iter().enumerate().filter_map(|(idx, value)| {
+          value.map(|value| {
+            ColorItem::new(
+              DlxItem::Letter {
+                letter: (idx as u32 + 'A' as u32) as u8 as char,
+              },
+              value,
+            )
+            .into()
+          })
+        }))
         .chain(values.into_iter().enumerate().filter_map(|(idx, letter)| {
           letter.map(|letter| {
             ColorItem::new(
@@ -624,47 +662,31 @@ impl Kakuro {
     let items = self.all_items();
 
     let choices = self.enumerate_lines().flat_map(|((item, clue), items)| {
-      let mut solver = LinearSolver::new();
-      match clue {
-        TotalClue::OneDigit(letter) => {
-          solver.add(DlxItem::Letter { letter }, -1, true);
-        }
-        TotalClue::TwoDigit { ones, tens } => {
-          solver.add(DlxItem::Letter { letter: ones }, -1, true);
-          solver.add(DlxItem::Letter { letter: tens }, -10, true);
-        }
-      }
-      let mut must_be_different = Vec::new();
-      items.fold(None, |prev, item| {
-        solver.add(item.clone(), 1, false);
-
-        if let Some(prev) = prev {
-          must_be_different.push((prev, item.clone()));
-        }
-        Some(item)
-      });
-
-      solver
-        .find_all_solutions_owned()
-        .map(Itertools::collect_vec)
-        .filter(move |soln| {
-          must_be_different.iter().all(|(a, b)| {
-            let a = soln
-              .iter()
-              .find_map(|(item, val)| if item == a { Some(val) } else { None })
-              .unwrap();
-            let b = soln
-              .iter()
-              .find_map(|(item, val)| if item == b { Some(val) } else { None })
-              .unwrap();
-            a != b
-          })
+      let items = items.collect_vec();
+      let items_len = items.len();
+      clue
+        .all_combinations(items.len() as u32)
+        .flat_map(move |(total, choices)| {
+          choices
+            .into_iter()
+            .permutations(items_len)
+            .map(move |choices| (total.clone(), choices))
         })
-        .flat_map(move |solution| Self::construct_dlx(item.clone(), solution))
+        .filter_map(move |(total, choices)| {
+          Self::construct_dlx(
+            item.clone(),
+            total
+              .iter()
+              .map(Clone::clone)
+              .chain(items.iter().map(Clone::clone).zip(choices))
+              .collect(),
+          )
+        })
     });
     let choices = (0u64..).zip(choices);
 
     let mut dlx = Dlx::new(items, choices);
+    // println!("{dlx:?}");
 
     dlx
       .find_all_solution_colors()
@@ -699,10 +721,17 @@ impl fmt::Display for Kakuro {
 
 #[cfg(test)]
 mod test {
+  use std::vec;
+
   use super::TotalClue;
 
   fn all_combinations(range: (u32, u32), num_tiles: u32) -> Vec<Vec<u32>> {
-    TotalClue::all_combinations_for_range(range, num_tiles).collect()
+    TotalClue::all_combinations_for_range(range, num_tiles)
+      .map(|(total, nums)| {
+        assert_eq!(nums.iter().sum::<u32>(), total);
+        nums
+      })
+      .collect()
   }
 
   #[test]
@@ -710,6 +739,24 @@ mod test {
     assert_eq!(
       all_combinations((2, 5), 1),
       vec![vec![2], vec![3], vec![4], vec![5]]
+    );
+  }
+
+  #[test]
+  fn test_combinations_wide_range() {
+    assert_eq!(
+      all_combinations((0, 12), 1),
+      vec![
+        vec![1],
+        vec![2],
+        vec![3],
+        vec![4],
+        vec![5],
+        vec![6],
+        vec![7],
+        vec![8],
+        vec![9]
+      ]
     );
   }
 

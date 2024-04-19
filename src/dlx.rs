@@ -378,10 +378,12 @@ where
       if !subset_names.insert(name.clone()) {
         panic!("Duplicate subset name: {name:?}");
       }
+      println!("{name:?}:");
 
       last_start_index = body.len();
       constraints.into_iter().for_each(|constraint| {
         let constraint: Constraint<I> = constraint.into();
+        println!("  {constraint:?}");
         let idx = body.len();
 
         let header_idx = *item_map
