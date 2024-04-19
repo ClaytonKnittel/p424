@@ -69,6 +69,13 @@ impl TotalClue {
       choices.push(1 + extra);
     }
 
+    if choices.len() == num_tiles as usize
+      && choices.last().is_some_and(|&choice| choice < 10)
+      && (air..=slack).contains(&0)
+    {
+      callback(&choices);
+    }
+
     while let Some(top) = choices.pop() {
       let choices_len = choices.len() as u32;
       let remaining = num_tiles - choices_len;
@@ -684,8 +691,135 @@ impl fmt::Display for Kakuro {
 mod test {
   use super::TotalClue;
 
+  fn all_combinations(range: (u32, u32), num_tiles: u32) -> Vec<Vec<u32>> {
+    let mut combinations = Vec::new();
+    TotalClue::all_combinations_for_range(range, num_tiles, |combination| {
+      combinations.push(combination.clone());
+    });
+    combinations
+  }
+
   #[test]
   fn test_combinations_one() {
-    TotalClue::all_combinations_for_range((2, 5), 1);
+    assert_eq!(
+      all_combinations((2, 5), 1),
+      vec![vec![2], vec![3], vec![4], vec![5]]
+    );
+  }
+
+  #[test]
+  fn test_combinations_two() {
+    assert_eq!(
+      all_combinations((2, 5), 2),
+      vec![vec![1, 2], vec![1, 3], vec![1, 4], vec![2, 3]]
+    );
+  }
+
+  #[test]
+  fn test_combinations_large_range() {
+    assert_eq!(
+      all_combinations((10, 20), 2),
+      vec![
+        vec![1, 9],
+        vec![2, 8],
+        vec![2, 9],
+        vec![3, 7],
+        vec![3, 8],
+        vec![3, 9],
+        vec![4, 6],
+        vec![4, 7],
+        vec![4, 8],
+        vec![4, 9],
+        vec![5, 6],
+        vec![5, 7],
+        vec![5, 8],
+        vec![5, 9],
+        vec![6, 7],
+        vec![6, 8],
+        vec![6, 9],
+        vec![7, 8],
+        vec![7, 9],
+        vec![8, 9],
+      ]
+    );
+  }
+
+  #[test]
+  fn test_combinations_large_range_three() {
+    assert_eq!(
+      all_combinations((10, 20), 3),
+      vec![
+        vec![1, 2, 7],
+        vec![1, 2, 8],
+        vec![1, 2, 9],
+        vec![1, 3, 6],
+        vec![1, 3, 7],
+        vec![1, 3, 8],
+        vec![1, 3, 9],
+        vec![1, 4, 5],
+        vec![1, 4, 6],
+        vec![1, 4, 7],
+        vec![1, 4, 8],
+        vec![1, 4, 9],
+        vec![1, 5, 6],
+        vec![1, 5, 7],
+        vec![1, 5, 8],
+        vec![1, 5, 9],
+        vec![1, 6, 7],
+        vec![1, 6, 8],
+        vec![1, 6, 9],
+        vec![1, 7, 8],
+        vec![1, 7, 9],
+        vec![1, 8, 9],
+        vec![2, 3, 5],
+        vec![2, 3, 6],
+        vec![2, 3, 7],
+        vec![2, 3, 8],
+        vec![2, 3, 9],
+        vec![2, 4, 5],
+        vec![2, 4, 6],
+        vec![2, 4, 7],
+        vec![2, 4, 8],
+        vec![2, 4, 9],
+        vec![2, 5, 6],
+        vec![2, 5, 7],
+        vec![2, 5, 8],
+        vec![2, 5, 9],
+        vec![2, 6, 7],
+        vec![2, 6, 8],
+        vec![2, 6, 9],
+        vec![2, 7, 8],
+        vec![2, 7, 9],
+        vec![2, 8, 9],
+        vec![3, 4, 5],
+        vec![3, 4, 6],
+        vec![3, 4, 7],
+        vec![3, 4, 8],
+        vec![3, 4, 9],
+        vec![3, 5, 6],
+        vec![3, 5, 7],
+        vec![3, 5, 8],
+        vec![3, 5, 9],
+        vec![3, 6, 7],
+        vec![3, 6, 8],
+        vec![3, 6, 9],
+        vec![3, 7, 8],
+        vec![3, 7, 9],
+        vec![3, 8, 9],
+        vec![4, 5, 6],
+        vec![4, 5, 7],
+        vec![4, 5, 8],
+        vec![4, 5, 9],
+        vec![4, 6, 7],
+        vec![4, 6, 8],
+        vec![4, 6, 9],
+        vec![4, 7, 8],
+        vec![4, 7, 9],
+        vec![5, 6, 7],
+        vec![5, 6, 8],
+        vec![5, 6, 9],
+        vec![5, 7, 8],
+      ]
+    );
   }
 }

@@ -1,6 +1,6 @@
 use std::io;
 
-use kakuro::{Kakuro, TotalClue};
+use kakuro::Kakuro;
 use sudoku::Sudoku;
 
 mod dlx;
@@ -11,14 +11,6 @@ mod solver;
 mod sudoku;
 
 fn main() -> io::Result<()> {
-  // TotalClue::all_combinations_for_range((2, 5), 1);
-  // TotalClue::all_combinations_for_range((2, 5), 2);
-  // TotalClue::all_combinations_for_range((10, 20), 2);
-  TotalClue::all_combinations_for_range((10, 20), 3, |combination| {
-    println!("{combination:?}");
-  });
-
-  /*
   let kakuros = Kakuro::from_file("p424_kakuro200.txt")?;
   // let kakuros = Kakuro::from_file("kakuro_test.txt")?;
   let sums: u64 = kakuros
@@ -43,7 +35,6 @@ fn main() -> io::Result<()> {
     s.solve();
     println!("{s}");
   }
-  */
 
   Ok(())
 }
