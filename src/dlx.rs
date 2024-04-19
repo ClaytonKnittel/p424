@@ -154,16 +154,6 @@ impl<I> Node<I> {
     }
   }
 
-  fn top(&self) -> u32 {
-    match self {
-      Node::Normal {
-        node_type: NodeType::Body { top, .. },
-        ..
-      } => *top,
-      _ => unreachable!("Unexpected top() called on non-body node"),
-    }
-  }
-
   fn len(&self) -> usize {
     match self {
       Node::Normal {
@@ -378,12 +368,10 @@ where
       if !subset_names.insert(name.clone()) {
         panic!("Duplicate subset name: {name:?}");
       }
-      println!("{name:?}:");
 
       last_start_index = body.len();
       constraints.into_iter().for_each(|constraint| {
         let constraint: Constraint<I> = constraint.into();
-        println!("  {constraint:?}");
         let idx = body.len();
 
         let header_idx = *item_map
@@ -825,7 +813,6 @@ where
   {
     let mut solutions = Vec::new();
     let mut solution = Vec::new();
-    let mut iters = 0;
 
     'cover_new_item: loop {
       match self.choose_item() {
@@ -855,7 +842,6 @@ where
           self.uncover_remaining_choices(p);
         }
 
-        iters += 1;
         // Try exploring the next choice.
         let p = self.node(p).next();
 
@@ -880,7 +866,6 @@ where
           Node::Boundary { .. } => unreachable!("Unexpected boundary node found in queue: {p}"),
         }
       }
-      // println!("Done in {iters} iters");
 
       break;
     }

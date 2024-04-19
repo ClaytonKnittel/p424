@@ -280,12 +280,6 @@ enum DlxItem {
   LetterValue { value: u32 },
 }
 
-impl DlxItem {
-  fn is_tile(&self) -> bool {
-    matches!(self, DlxItem::Tile { .. })
-  }
-}
-
 pub struct LetterAssignment {
   letters: [u32; 10],
 }
@@ -546,7 +540,7 @@ impl Kakuro {
     clue_item: DlxItem,
     items: Vec<(DlxItem, u32)>,
   ) -> Option<impl Iterator<Item = Constraint<DlxItem>>> {
-    println!("Checking: {clue_item:?}: {items:?}");
+    // println!("Checking: {clue_item:?}: {items:?}");
     let (letters, values) = match items.iter().try_fold(
       ([(); 10].map(|_| None), [(); 10].map(|_| None)),
       |(mut letters_array, mut values_array), (item, value)| {
@@ -569,12 +563,12 @@ impl Kakuro {
       },
     ) {
       ControlFlow::Break(_) => {
-        println!("Filtered!");
+        // println!("Filtered!");
         return None;
       }
       ControlFlow::Continue(arrays) => arrays,
     };
-    println!("Kept");
+    // println!("Kept");
 
     Some(
       iter::once(clue_item.into())
@@ -607,7 +601,8 @@ impl Kakuro {
     )
   }
 
-  fn print_test(&self, soln: &HashMap<DlxItem, u32>) {
+  #[allow(unused)]
+  fn print_solution(&self, soln: &HashMap<DlxItem, u32>) {
     self.tiles.iter().enumerate().for_each(|(idx, tile)| {
       let out = match tile {
         Tile::Unknown(UnknownTile::Blank) => {
@@ -651,18 +646,6 @@ impl Kakuro {
   }
 
   pub fn solve(&self) -> Vec<LetterAssignment> {
-    for line in self.enumerate_lines() {
-      println!(
-        "Line: {}: {}",
-        line.0 .1,
-        line
-          .1
-          .map(|item| format!("{item:?}"))
-          .collect::<Vec<_>>()
-          .join(", "),
-      );
-    }
-
     let items = self.all_items();
 
     let choices = self.enumerate_lines().flat_map(|((item, clue), items)| {
