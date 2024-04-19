@@ -70,8 +70,6 @@ impl TotalClue {
     while let Some(top) = choices.pop() {
       let choices_len = choices.len() as u32;
       let remaining = num_tiles - choices_len;
-      println!("{choices:?}, {top}: remaining {remaining}");
-      println!("slack: {slack}, air: {air}");
       debug_assert_eq!(
         max as i32
           - (choices.iter().sum::<u32>() + top * remaining + remaining * (remaining - 1) / 2)
@@ -85,13 +83,11 @@ impl TotalClue {
         air
       );
 
-      if slack < 0 {
+      if slack < 0 || top == 11 - remaining {
         // Numbers got too big, time to abort.
-        if let Some(choice) = choices.last_mut() {
-          let prev_choice = *choice;
-          *choice = prev_choice + 1;
-
-          let diff = (remaining * (top - prev_choice - 1)) as i32 - (remaining as i32 + 1);
+        if let Some(choice) = choices.pop() {
+          choices.push(choice + 1);
+          let diff = (remaining * (top - choice - 1)) as i32 - (remaining as i32 + 1);
           slack += diff;
           air += diff;
         }
@@ -100,7 +96,7 @@ impl TotalClue {
         debug_assert!((min..=max).contains(&(choices.iter().sum::<u32>() + top)));
         let mut c = choices.clone();
         c.push(top);
-        println!("Solution: {:?}", c);
+        println!("Solution: {:?} ({})", c, c.iter().sum::<u32>());
 
         choices.push(top + 1);
         slack -= 1;
