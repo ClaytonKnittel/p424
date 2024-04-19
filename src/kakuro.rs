@@ -546,14 +546,16 @@ impl Kakuro {
     clue_item: DlxItem,
     items: Vec<(DlxItem, u32)>,
   ) -> Option<impl Iterator<Item = Constraint<DlxItem>>> {
+    println!("Checking: {clue_item:?}: {items:?}");
     let (letters, values) = match items.iter().try_fold(
       ([(); 10].map(|_| None), [(); 10].map(|_| None)),
       |(mut letters_array, mut values_array), (item, value)| {
         let value = *value;
         match item {
           DlxItem::Letter { letter } => {
-            if letters_array[value as usize].is_some_and(|prev_value| prev_value != value)
-              || values_array[value as usize].is_some()
+            if letters_array[*letter as usize - 'A' as usize]
+              .is_some_and(|prev_value| prev_value != value)
+              || values_array[value as usize].is_some_and(|prev_letter| prev_letter != *letter)
             {
               ControlFlow::Break(())
             } else {
@@ -567,10 +569,12 @@ impl Kakuro {
       },
     ) {
       ControlFlow::Break(_) => {
+        println!("Filtered!");
         return None;
       }
       ControlFlow::Continue(arrays) => arrays,
     };
+    println!("Kept");
 
     Some(
       iter::once(clue_item.into())
