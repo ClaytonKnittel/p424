@@ -35,6 +35,78 @@ impl TotalClue {
       unreachable!("Tried to construct clue with wrong number of digits: \"{clue}\"")
     }
   }
+
+  fn sum_range(&self) -> (u32, u32) {
+    match self {
+      TotalClue::OneDigit(_) => (0, 9),
+      TotalClue::TwoDigit { .. } => (10, 45),
+    }
+  }
+
+  pub fn all_permutations_for_range((min, max): (u32, u32), num_tiles: u32) {
+    debug_assert!((1..=9).contains(&num_tiles));
+    let mut choices = Vec::with_capacity(num_tiles as usize);
+
+    // Slack is the amount of extra value we have to add above the min possible
+    // permutation (1, 2, 3, 4, ...) to sum to `max`. Slack cannot fall below
+    // 0, else the sum of numbers would be larger than `max`.
+    let mut slack = max as i32 - (num_tiles * (num_tiles + 1) / 2) as i32;
+    // Air is the amount of extra value we have to add above the min possible
+    // permutation (1, 2, 3, 4, ...) to sum to `min`. Air must be <= 0, else
+    // the sum of numbers would be less than `min`.
+    let mut air = min as i32 - (num_tiles * (num_tiles + 1) / 2) as i32;
+
+    {
+      let max_extra_from_remainder =
+        9 * (num_tiles - 1) - (num_tiles - 1) * (num_tiles.wrapping_sub(2)) / 2;
+      let extra = (air as u32).saturating_sub(max_extra_from_remainder);
+      slack -= (extra * num_tiles) as i32;
+      air -= (extra * num_tiles) as i32;
+      choices.push(1 + extra);
+    }
+
+    println!("slack: {slack}, air: {air}");
+    while let Some(top) = choices.pop() {
+      let choices_len = choices.len() as u32;
+      let remaining = num_tiles - choices_len;
+      println!("{choices:?}, {top}: remaining {remaining}");
+      println!("slack: {slack}, air: {air}");
+
+      if slack < 0 {
+        // Numbers got too big, time to abort.
+        let prev = *choices.last().unwrap_or(&0);
+        let extra = (top - prev - 1) * remaining;
+        slack += extra as i32;
+        air += extra as i32;
+      } else if remaining == 1 {
+        debug_assert!(air <= 0);
+        // yield
+        let mut c = choices.clone();
+        c.push(top);
+        println!("Solution: {:?}", c);
+
+        choices.push(top + 1);
+        slack -= 1;
+        air -= 1;
+      } else if air > 0 {
+        choices.push(top);
+        let remaining = remaining - 1;
+
+        let max_extra_from_remainder = (remaining - 1) * (9 - remaining - top);
+        choices.push(top + 1 + (air as u32).saturating_sub(max_extra_from_remainder));
+      } else {
+        choices.push(top);
+        choices.push(top + 1);
+      }
+    }
+  }
+
+  fn all_permutations(&self, num_tiles: u32) {
+    // -> impl Iterator<Item = (TotalClue, impl Iterator<Item = u32>)> + '_ {
+    let (min, max) = self.sum_range();
+    Self::all_permutations_for_range((min, max), num_tiles);
+    todo!();
+  }
 }
 
 impl Display for TotalClue {
