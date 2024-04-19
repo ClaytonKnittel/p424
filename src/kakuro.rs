@@ -43,7 +43,10 @@ impl TotalClue {
     }
   }
 
-  pub fn all_combinations_for_range((min, max): (u32, u32), num_tiles: u32) {
+  pub fn all_combinations_for_range<F>((min, max): (u32, u32), num_tiles: u32, mut callback: F)
+  where
+    F: FnMut(&Vec<u32>),
+  {
     debug_assert!((1..=9).contains(&num_tiles));
     let mut choices = Vec::with_capacity(num_tiles as usize);
 
@@ -66,7 +69,6 @@ impl TotalClue {
       choices.push(1 + extra);
     }
 
-    println!("slack: {slack}, air: {air}");
     while let Some(top) = choices.pop() {
       let choices_len = choices.len() as u32;
       let remaining = num_tiles - choices_len;
@@ -94,9 +96,6 @@ impl TotalClue {
       } else if remaining == 1 {
         debug_assert!(air <= 0);
         debug_assert!((min..=max).contains(&(choices.iter().sum::<u32>() + top)));
-        let mut c = choices.clone();
-        c.push(top);
-        println!("Solution: {:?} ({})", c, c.iter().sum::<u32>());
 
         choices.push(top + 1);
         slack -= 1;
@@ -114,13 +113,20 @@ impl TotalClue {
         choices.push(top);
         choices.push(top + 1);
       }
+
+      if choices.len() == num_tiles as usize
+        && choices.last().is_some_and(|&choice| choice < 10)
+        && (air..=slack).contains(&0)
+      {
+        callback(&choices);
+      }
     }
   }
 
   fn all_combinations(&self, num_tiles: u32) {
     // -> impl Iterator<Item = (TotalClue, impl Iterator<Item = u32>)> + '_ {
     let (min, max) = self.sum_range();
-    Self::all_combinations_for_range((min, max), num_tiles);
+    Self::all_combinations_for_range((min, max), num_tiles, |_| {});
     todo!();
   }
 }
