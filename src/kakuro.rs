@@ -70,6 +70,8 @@ impl TotalClue {
     while let Some(top) = choices.pop() {
       let choices_len = choices.len() as u32;
       let remaining = num_tiles - choices_len;
+      println!("{choices:?}, {top}: remaining {remaining}");
+      println!("slack: {slack}, air: {air}");
       debug_assert_eq!(
         max as i32
           - (choices.iter().sum::<u32>() + top * remaining + remaining * (remaining - 1) / 2)
@@ -83,9 +85,6 @@ impl TotalClue {
         air
       );
 
-      println!("{choices:?}, {top}: remaining {remaining}");
-      println!("slack: {slack}, air: {air}");
-
       if slack < 0 {
         // Numbers got too big, time to abort.
         if let Some(choice) = choices.last_mut() {
@@ -96,12 +95,9 @@ impl TotalClue {
           slack += diff;
           air += diff;
         }
-        // let extra = (top - prev - 1) * remaining;
-        // slack += extra as i32;
-        // air += extra as i32;
       } else if remaining == 1 {
         debug_assert!(air <= 0);
-        // yield
+        debug_assert!((min..=max).contains(&(choices.iter().sum::<u32>() + top)));
         let mut c = choices.clone();
         c.push(top);
         println!("Solution: {:?}", c);
@@ -114,7 +110,10 @@ impl TotalClue {
         let remaining = remaining - 1;
 
         let max_extra_from_remainder = (remaining - 1) * (9 - remaining - top);
-        choices.push(top + 1 + (air as u32).saturating_sub(max_extra_from_remainder));
+        let extra = (air as u32).saturating_sub(max_extra_from_remainder);
+        choices.push(top + 1 + extra);
+        slack -= (extra * remaining) as i32;
+        air -= (extra * remaining) as i32;
       } else {
         choices.push(top);
         choices.push(top + 1);

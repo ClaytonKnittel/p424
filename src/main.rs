@@ -12,7 +12,8 @@ mod sudoku;
 
 fn main() -> io::Result<()> {
   // TotalClue::all_combinations_for_range((2, 5), 1);
-  TotalClue::all_combinations_for_range((2, 5), 2);
+  // TotalClue::all_combinations_for_range((2, 5), 2);
+  TotalClue::all_combinations_for_range((10, 20), 2);
 
   /*
   let kakuros = Kakuro::from_file("p424_kakuro200.txt")?;
