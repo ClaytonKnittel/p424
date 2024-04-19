@@ -43,10 +43,10 @@ impl TotalClue {
     }
   }
 
-  pub fn all_combinations_for_range<F>((min, max): (u32, u32), num_tiles: u32, mut callback: F)
-  where
-    F: FnMut(&Vec<u32>),
-  {
+  pub fn all_combinations_for_range(
+    (min, max): (u32, u32),
+    num_tiles: u32,
+  ) -> impl Iterator<Item = Vec<u32>> {
     debug_assert!((1..=9).contains(&num_tiles));
     let mut choices = Vec::with_capacity(num_tiles as usize);
 
@@ -69,71 +69,81 @@ impl TotalClue {
       choices.push(1 + extra);
     }
 
-    if choices.len() == num_tiles as usize
-      && choices.last().is_some_and(|&choice| choice < 10)
-      && (air..=slack).contains(&0)
-    {
-      callback(&choices);
-    }
-
-    while let Some(top) = choices.pop() {
-      let choices_len = choices.len() as u32;
-      let remaining = num_tiles - choices_len;
-      debug_assert_eq!(
-        max as i32
-          - (choices.iter().sum::<u32>() + top * remaining + remaining * (remaining - 1) / 2)
-            as i32,
-        slack
-      );
-      debug_assert_eq!(
-        min as i32
-          - (choices.iter().sum::<u32>() + top * remaining + remaining * (remaining - 1) / 2)
-            as i32,
-        air
-      );
-
-      if slack < 0 || top == 11 - remaining {
-        // Numbers got too big, time to abort.
-        if let Some(choice) = choices.pop() {
-          choices.push(choice + 1);
-          let diff = (remaining * (top - choice - 1)) as i32 - (remaining as i32 + 1);
-          slack += diff;
-          air += diff;
-        }
-      } else if remaining == 1 {
-        debug_assert!(air <= 0);
-        debug_assert!((min..=max).contains(&(choices.iter().sum::<u32>() + top)));
-
-        choices.push(top + 1);
-        slack -= 1;
-        air -= 1;
-      } else if air > 0 {
-        choices.push(top);
-        let remaining = remaining - 1;
-
-        let max_extra_from_remainder = (remaining - 1) * (9 - remaining - top);
-        let extra = (air as u32).saturating_sub(max_extra_from_remainder);
-        choices.push(top + 1 + extra);
-        slack -= (extra * remaining) as i32;
-        air -= (extra * remaining) as i32;
-      } else {
-        choices.push(top);
-        choices.push(top + 1);
-      }
-
+    iter::once(
       if choices.len() == num_tiles as usize
         && choices.last().is_some_and(|&choice| choice < 10)
         && (air..=slack).contains(&0)
       {
-        callback(&choices);
-      }
-    }
+        Some(choices.clone())
+      } else {
+        None
+      },
+    )
+    .chain(
+      iter::repeat(()).scan((choices, slack, air), move |(choices, slack, air), _| {
+        choices.pop().map(move |top| {
+          let choices_len = choices.len() as u32;
+          let remaining = num_tiles - choices_len;
+          debug_assert_eq!(
+            max as i32
+              - (choices.iter().sum::<u32>() + top * remaining + remaining * (remaining - 1) / 2)
+                as i32,
+            *slack
+          );
+          debug_assert_eq!(
+            min as i32
+              - (choices.iter().sum::<u32>() + top * remaining + remaining * (remaining - 1) / 2)
+                as i32,
+            *air
+          );
+
+          if *slack < 0 || top == 11 - remaining {
+            // Numbers got too big, time to abort.
+            if let Some(choice) = choices.pop() {
+              choices.push(choice + 1);
+              let diff = (remaining * (top - choice - 1)) as i32 - (remaining as i32 + 1);
+              *slack += diff;
+              *air += diff;
+            }
+          } else if remaining == 1 {
+            debug_assert!(*air <= 0);
+            debug_assert!((min..=max).contains(&(choices.iter().sum::<u32>() + top)));
+
+            choices.push(top + 1);
+            *slack -= 1;
+            *air -= 1;
+          } else if *air > 0 {
+            choices.push(top);
+            let remaining = remaining - 1;
+
+            let max_extra_from_remainder = (remaining - 1) * (9 - remaining - top);
+            let extra = (*air as u32).saturating_sub(max_extra_from_remainder);
+            choices.push(top + 1 + extra);
+            *slack -= (extra * remaining) as i32;
+            *air -= (extra * remaining) as i32;
+          } else {
+            choices.push(top);
+            choices.push(top + 1);
+          }
+
+          if choices.len() == num_tiles as usize
+            && choices.last().is_some_and(|&choice| choice < 10)
+            && (*air..=*slack).contains(&0)
+          {
+            Some(choices.clone())
+          } else {
+            None
+          }
+        })
+      }),
+    )
+    .flatten()
   }
 
   fn all_combinations(&self, num_tiles: u32) {
     // -> impl Iterator<Item = (TotalClue, impl Iterator<Item = u32>)> + '_ {
     let (min, max) = self.sum_range();
-    Self::all_combinations_for_range((min, max), num_tiles, |_| {});
+    Self::all_combinations_for_range((min, max), num_tiles);
     todo!();
   }
 }
@@ -692,11 +702,7 @@ mod test {
   use super::TotalClue;
 
   fn all_combinations(range: (u32, u32), num_tiles: u32) -> Vec<Vec<u32>> {
-    let mut combinations = Vec::new();
-    TotalClue::all_combinations_for_range(range, num_tiles, |combination| {
-      combinations.push(combination.clone());
-    });
-    combinations
+    TotalClue::all_combinations_for_range(range, num_tiles).collect()
   }
 
   #[test]
